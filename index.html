@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>야구선수 키우기</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>야구선수 키우기</h1>
+
+  <!-- 화면 1: 선수 생성 -->
+  <section id="create-screen">
+    <h2>새 선수 만들기</h2>
+    <form id="create-form">
+      <label>이름
+        <input id="name" type="text" maxlength="10" required placeholder="예: 김야구">
+      </label>
+
+      <label>유형
+        <select id="type">
+          <option value="batter">타자</option>
+          <option value="pitcher">투수</option>
+          <option value="twoway">이도류</option>
+        </select>
+      </label>
+
+      <label>포지션
+        <select id="position"></select>
+      </label>
+
+      <label>투타
+        <select id="hand">
+          <option>우투우타</option>
+          <option>우투좌타</option>
+          <option>좌투좌타</option>
+          <option>좌투우타</option>
+        </select>
+      </label>
+
+      <label class="school-field"><span>고등학교 <small id="school-count"></small></span>
+        <input id="school-search" type="search" placeholder="학교 검색 (예: 덕수, 부산, 경기)">
+        <select id="school"></select>
+      </label>
+
+      <label>플레이 스타일
+        <select id="style"></select>
+      </label>
+
+      <button type="submit">선수 생성</button>
+    </form>
+  </section>
+
+  <!-- 화면 2: 선수 정보와 시즌 진행 (처음엔 숨김) -->
+  <section id="player-screen" hidden>
+    <div id="player-header"></div>
+
+    <!-- 진로 선택지 (드래프트 미지명, FA, 국가대표 등) -->
+    <div id="choice-panel" hidden></div>
+
+    <nav id="tabs">
+      <button data-tab="train" class="active">훈련</button>
+      <button data-tab="result">시즌 결과</button>
+      <button data-tab="board">반응</button>
+      <button data-tab="record">통산 기록</button>
+      <button data-tab="money">재산</button>
+      <button data-tab="ach">업적</button>
+    </nav>
+
+    <div class="tab" id="tab-train">
+      <div id="player-card"></div>
+      <div id="season-panel">
+        <h3>이번 시즌 집중 훈련 <small>(2개 선택, 나머지는 떨어질 수도 있어요)</small></h3>
+        <div id="focus-list"></div>
+        <div id="position-panel"></div>
+        <button id="season-button" disabled>시즌 진행</button>
+        <button id="retire-button" class="secondary" hidden>은퇴하기</button>
+      </div>
+    </div>
+    <div class="tab" id="tab-result" hidden></div>
+    <div class="tab" id="tab-board" hidden></div>
+    <div class="tab" id="tab-record" hidden></div>
+    <div class="tab" id="tab-money" hidden></div>
+    <div class="tab" id="tab-ach" hidden></div>
+
+    <button id="reset-button" class="secondary">처음부터 다시</button>
+  </section>
+
+  <!-- 화면 3: 은퇴 -->
+  <section id="retired-screen" hidden>
+    <div id="retire-summary"></div>
+    <div id="hof-result"></div>
+    <h3>명예의 전당</h3>
+    <div id="hof-hall"></div>
+    <h3>역대 선수 랭킹 <small>(통산 WAR 순)</small></h3>
+    <div id="ranking"></div>
+    <h3>업적 도감</h3>
+    <div id="ach-retired"></div>
+    <button id="new-player-button">새 선수 키우기</button>
+  </section>
+
+  <!-- 큰 화면 알림 (수상, 결정적 순간 결과) -->
+  <div id="big-modal" hidden>
+    <div class="big-card">
+      <p class="big-kicker"></p>
+      <h2 class="big-title"></h2>
+      <div class="big-body"></div>
+      <button id="big-close">확인</button>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="sim.js"></script>
+  <script src="money.js"></script>
+  <script src="career.js"></script>
+  <script src="national.js"></script>
+  <script src="story.js"></script>
+  <script src="rules.js"></script>
+  <script src="legacy.js"></script>
+  <script src="world.js"></script>
+  <script src="feed.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>

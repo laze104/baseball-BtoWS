@@ -1,0 +1,975 @@
+// =============================================
+// main.js : 화면과 버튼 동작
+// (규칙은 career.js, 시뮬레이션은 sim.js, 돈은 money.js,
+//  국가대표는 national.js, 기사·댓글은 feed.js에 있어요)
+// =============================================
+
+const SAVE_KEY = "baseball-save"; // localStorage에 저장할 때 쓰는 이름
+
+// HTML 요소 가져오기
+const $ = (id) => document.getElementById(id);
+const createScreen = $("create-screen");
+const playerScreen = $("player-screen");
+const retiredScreen = $("retired-screen");
+const form = $("create-form");
+const typeSelect = $("type");
+const positionSelect = $("position");
+const schoolSelect = $("school");
+const styleSelect = $("style");
+const focusList = $("focus-list");
+const seasonPanel = $("season-panel");
+const seasonButton = $("season-button");
+const retireButton = $("retire-button");
+const choicePanel = $("choice-panel");
+
+let currentPlayer = null; // 지금 플레이 중인 선수
+
+// ---------------------------------------------
+// 1. 선택 상자(select) 채우기
+// ---------------------------------------------
+
+function fillSelect(select, items) {
+  select.innerHTML = "";
+  for (const item of items) {
+    const option = document.createElement("option");
+    option.textContent = item;
+    select.appendChild(option);
+  }
+}
+
+function updateOptionsByType() {
+  const type = typeSelect.value;
+  fillSelect(positionSelect, POSITIONS[type]);
+  fillSelect(styleSelect, Object.keys(STYLES[type]));
+}
+
+// 고등학교 목록: 이름·권역으로 검색할 수 있어요 (가나다순)
+const LEVEL_LABEL = { 3: "전통 강호", 2: "강팀", 1: "중위권" };
+const sortedSchools = [...HIGH_SCHOOLS].sort((a, b) => a.name.localeCompare(b.name, "ko"));
+
+function fillSchools(keyword) {
+  const k = (keyword || "").trim();
+  const list = sortedSchools.filter((sc) => !k || sc.name.includes(k) || hsRegion(sc.name).includes(k));
+  const before = schoolSelect.value;
+  schoolSelect.innerHTML = "";
+  for (const sc of list) {
+    const option = document.createElement("option");
+    option.value = sc.name;
+    option.textContent = `${sc.name} · ${hsRegion(sc.name)} · ${LEVEL_LABEL[sc.level]}`;
+    schoolSelect.appendChild(option);
+  }
+  if (list.some((sc) => sc.name === before)) schoolSelect.value = before;
+  $("school-count").textContent = k ? `(${list.length}개 검색됨)` : `(${HIGH_SCHOOLS.length}개 학교)`;
+}
+fillSchools("");
+$("school-search").addEventListener("input", (event) => fillSchools(event.target.value));
+updateOptionsByType();
+typeSelect.addEventListener("change", updateOptionsByType);
+
+// ---------------------------------------------
+// 2. 선수 만들기
+// ---------------------------------------------
+
+function getStatKeys(type) {
+  if (type === "batter") return Object.keys(BATTER_STATS);
+  if (type === "pitcher") return Object.keys(PITCHER_STATS);
+  return [...Object.keys(BATTER_STATS), ...Object.keys(PITCHER_STATS)];
+}
+
+function getStatNames(type) {
+  if (type === "batter") return BATTER_STATS;
+  if (type === "pitcher") return PITCHER_STATS;
+  return { ...BATTER_STATS, ...PITCHER_STATS };
+}
+
+// 스타일 가중치대로 능력치 포인트를 나눠줘요
+function rollStats(type, styleName) {
+  const keys = getStatKeys(type);
+  const bonus = STYLES[type][styleName];
+
+  // 타고난 재능: 선수마다 총합이 START_TOTAL ± 30 사이에서 달라져요
+  let total = START_TOTAL + randomInt(-30, 30);
+  if (type === "twoway") total = Math.round(total * 1.6); // 이도류: 14개 능력치라 총량을 조금 더 줘요
+
+  const weights = keys.map((key) => bonus[key] || 1);
+  const weightSum = weights.reduce((sum, w) => sum + w, 0);
+
+  const stats = {};
+  keys.forEach((key, i) => {
+    const base = (total * weights[i]) / weightSum;
+    const value = Math.round(base) + randomInt(-20, 20); // 능력치마다 ±20 흔들기
+    stats[key] = Math.max(1, Math.min(99, value));
+  });
+  return stats;
+}
+
+// 포지션에 맞춰 OVR(종합 능력치)을 계산해요
+function calcOvr(stats, statNames, position) {
+  const focus = POSITION_FOCUS[position] || [];
+  let total = 0;
+  let count = 0;
+  for (const key of Object.keys(statNames)) {
+    if (position === "지명타자" && (key === "defense" || key === "arm")) continue; // 지명타자는 수비 능력치 제외
+    const weight = focus.includes(key) ? 2 : 1;
+    total += stats[key] * weight;
+    count += weight;
+  }
+  return Math.round(total / count);
+}
+
+function createPlayer(info) {
+  const player = { ...info, age: 16, season: 1, stats: rollStats(info.type, info.style) };
+  return initCareer(player);
+}
+
+// ---------------------------------------------
+// 3. 탭
+// ---------------------------------------------
+
+function setTab(name) {
+  for (const button of document.querySelectorAll("#tabs button")) {
+    button.classList.toggle("active", button.dataset.tab === name);
+  }
+  for (const tab of document.querySelectorAll(".tab")) {
+    tab.hidden = tab.id !== `tab-${name}`;
+  }
+}
+
+$("tabs").addEventListener("click", (event) => {
+  if (event.target.dataset.tab) setTab(event.target.dataset.tab);
+});
+
+// ---------------------------------------------
+// 4. 화면 그리기
+// ---------------------------------------------
+
+function ovrClass(ovr) {
+  if (ovr >= 70) return "ovr legend";
+  if (ovr >= 60) return "ovr high";
+  return "ovr";
+}
+
+function statListHtml(title, stats, statNames, ovr, gains) {
+  let html = `<h3>${title} <span class="${ovrClass(ovr)}">OVR ${ovr}</span></h3><ul class="stats">`;
+  for (const [key, label] of Object.entries(statNames)) {
+    const value = stats[key];
+    const gain = gains[key] || 0;
+    let gainHtml = "";
+    if (gain > 0) gainHtml = `<span class="gain">+${gain}</span>`;
+    if (gain < 0) gainHtml = `<span class="loss">${gain}</span>`;
+    html += `<li><span>${label}</span><span class="bar" style="--v:${value}"></span><b>${value}${gainHtml}</b></li>`;
+  }
+  return html + "</ul>";
+}
+
+function stageText(player) {
+  if (player.league === "HS") {
+    return player.age >= 19 ? `${player.school} 졸업` : `${player.school} ${player.age - 15}학년`;
+  }
+  if (player.league === "COLLEGE") {
+    return player.age >= 23 ? `${player.college} 졸업` : `${player.college} ${player.age - 18}학년`;
+  }
+  return `${LEAGUES[player.league].name} · ${player.team}`;
+}
+
+function showPlayer(player) {
+  currentPlayer = player;
+  const gains = player.lastReport ? player.lastReport.gains : {};
+  const ovrs = getOvrs(player);
+
+  const fame = player.fame || 0;
+  $("player-header").innerHTML = `
+    <h2>${player.name}${player.nickname ? ` <span class="nick">'${player.nickname}'</span>` : ""} <small>${koreanAge(player.age)}세 · ${player.position} · ${player.hand}</small></h2>
+    <p class="stage">${gameYear(player)}년 · ${stageText(player)}<span>💰 ${fmtMoney(player.money)}</span></p>
+    <p class="badges"><span class="${fame >= 30 ? "good" : fame <= -10 ? "bad" : ""}">팬 여론 ${fameLabel(fame)} (${fame})</span>${
+      isFranchiseHere(player) ? `<span class="star">★ ${player.team} 프랜차이즈 스타</span>` : ""}${
+      militaryBadge(player)}${player.married ? "<span>💍 기혼</span>" : player.dating ? "<span>💕 열애 중</span>" : ""}${
+      player.kids ? `<span>👶 자녀 ${player.kids}</span>` : ""}${player.pet ? "<span>🐶 반려견</span>" : ""}${player.trainee ? "<span>육성선수 출신</span>" : ""}</p>`;
+
+  let card = "";
+  if (ovrs.bat !== null) card += statListHtml("타자 능력치", player.stats, BATTER_STATS, ovrs.bat, gains);
+  if (ovrs.pit !== null) card += statListHtml("투수 능력치", player.stats, PITCHER_STATS, ovrs.pit, gains);
+  $("player-card").innerHTML = scoutHtml(player) + card; // 성장유형·숨은 특성은 끝까지 비밀
+
+  showFocusChoices(player);
+  showPositionPanel(player);
+  showChoice(player);
+  showSeasonResult(player.lastReport);
+  showBoard(player, player.lastReport);
+  showRecord(player);
+  showMoney(player);
+  showAchievements($("tab-ach"));
+
+  retireButton.hidden = player.age < 33;
+  createScreen.hidden = true;
+  retiredScreen.hidden = true;
+  playerScreen.hidden = false;
+}
+
+// 집중 능력치 체크박스 (지난 시즌 선택을 기억해요)
+function showFocusChoices(player) {
+  const last = player.lastFocus || [];
+  focusList.innerHTML = "";
+  for (const [key, label] of Object.entries(getStatNames(player.type))) {
+    const checked = last.includes(key) ? "checked" : "";
+    focusList.innerHTML += `<label><input type="checkbox" value="${key}" ${checked}>${label}</label>`;
+  }
+  seasonButton.disabled = getCheckedFocus().length !== 2;
+}
+
+function getCheckedFocus() {
+  return Array.from(focusList.querySelectorAll("input:checked")).map((input) => input.value);
+}
+
+focusList.addEventListener("change", (event) => {
+  if (getCheckedFocus().length > 2) event.target.checked = false;
+  seasonButton.disabled = getCheckedFocus().length !== 2;
+});
+
+function militaryBadge(player) {
+  const m = player.military;
+  if (m === "done") return "<span>🎖️ 군필</span>";
+  if (m === "exempt") return "<span>🎖️ 병역 특례</span>";
+  if (m && m.left) return `<span>🪖 복무 중 (남은 ${m.left}년)</span>`;
+  if (player.age >= 23 && player.league !== "HS") return "<span>🪖 미필</span>";
+  return "";
+}
+
+// 포지션 변경 (비시즌마다 1번)
+function showPositionPanel(player) {
+  const box = $("position-panel");
+  if (isServing(player)) { box.innerHTML = ""; return; }
+  let html = `<details><summary>포지션 변경 <small>(지금: ${player.position} · 비시즌마다 1번)</small></summary><ul class="positions">`;
+  for (const pos of positionOptions(player)) {
+    const block = positionBlock(player, pos);
+    const ovr = ovrAt(player, pos);
+    html += `<li><span>${pos}</span><b class="${ovrClass(ovr)}">OVR ${ovr}</b>
+      <button data-pos="${pos}" ${block ? "disabled" : ""}>${block || "바꾸기"}</button></li>`;
+  }
+  html += `</ul><p class="small">새 수비 위치는 첫 시즌 적응 기간(컨디션 -2)이 있어요. 지명타자는 수비 능력치가 OVR에서 빠지지만 WAR 보정이 낮아요.</p></details>`;
+  html += meetingHtml(player);
+  if (canRetireNational(player)) {
+    html += `<p class="national-retire">🇰🇷 국가대표 ${player.awards["국가대표"]}회 <button class="secondary" data-nretire="1">국가대표 은퇴 선언</button></p>`;
+  } else if (player.nationalRetired) {
+    html += `<p class="national-retire small">🇰🇷 국가대표 은퇴 (${player.awards["국가대표"] || 0}회 출전)</p>`;
+  }
+  box.innerHTML = html;
+}
+
+$("position-panel").addEventListener("click", (event) => {
+  if (event.target.dataset.wish) {
+    const r = meetManager(currentPlayer, event.target.dataset.wish);
+    addReaction(currentPlayer, currentPlayer.lastReport, [r.news], r.result === "no" ? FAN.lifeBad : FAN.good, {});
+    savePlayer(currentPlayer);
+    showPlayer(currentPlayer);
+    const title = { yes: "✅ 수락", camp: "🤔 캠프에서 결정", no: "❌ 거절" }[r.result];
+    showBigMoments([{ tone: r.result === "yes" ? "gold" : r.result === "camp" ? "good" : "bad", kicker: `감독 면담 · ${r.wish.short}`, title, lines: [r.line] }]);
+    return;
+  }
+  if (event.target.dataset.nretire) {
+    if (!confirm("국가대표에서 은퇴할까요? 앞으로 대표팀에 뽑히지 않아요.")) return;
+    const line = retireNational(currentPlayer);
+    addReaction(currentPlayer, currentPlayer.lastReport, [line], FAN.nationalRetire, {});
+    savePlayer(currentPlayer);
+    showPlayer(currentPlayer);
+    showBigMoments([{ tone: "good", kicker: "국가대표 은퇴", title: "🇰🇷 태극마크 반납", lines: [line] }]);
+    return;
+  }
+  const pos = event.target.dataset.pos;
+  if (!pos) return;
+  if (!confirm(`${currentPlayer.position} → ${pos}(으)로 바꿀까요?`)) return;
+  const line = changePosition(currentPlayer, pos, false);
+  addReaction(currentPlayer, currentPlayer.lastReport, [line], pos === "지명타자" ? FAN.dh : FAN.position, {});
+  savePlayer(currentPlayer);
+  showPlayer(currentPlayer);
+  $("position-panel").querySelector("details").open = true;
+});
+
+// 선택지별 팬 반응 댓글 묶음
+function reactionPool(key, option, player) {
+  if (key === "fa") return FAN.contract;
+  if (key === "clutch") return player.lastClutch ? FAN.clutchGood : FAN.clutchBad;
+  if (key === "draftSign") return option.id === "college" ? FAN.college : FAN.draft;
+  if (key === "undrafted" && option.id === "COLLEGE") return FAN.college;
+  if (key === "collegePick") return FAN.college;
+  if (key === "managerTalk" || key === "closerOffer") return FAN.good;
+  if (key === "posting") {
+    if (option.id === "stay") return FAN.good;
+    return player.pendingChoice && player.pendingChoice.key === "postingOffer" ? FAN.posting : FAN.postingFail;
+  }
+  if (key === "postingOffer" || key === "overseasOffer") return option.offer ? FAN.posting : FAN.good;
+  if (key === "national") return option.id === "join" ? FAN.national : FAN.nationalSkip;
+  if (key === "military") return option.id === "delay" ? FAN.good : FAN.military;
+  if (key === "life") return option.mood === "bad" ? FAN.lifeBad : FAN.lifeGood;
+  if (key === "position") return option.id === "accept" ? FAN.position : FAN.good;
+  if (key === "mlbDirect") return option.id === "go" ? FAN.mlbDirect : FAN.good;
+  if (key === "national" && option.id === "nretire") return FAN.nationalRetire;
+  return FAN.good;
+}
+
+// 진로 선택지 (드래프트 미지명, FA 제안, 국가대표 등)
+function showChoice(player) {
+  const choice = player.pendingChoice;
+  choicePanel.hidden = !choice;
+  seasonPanel.hidden = !!choice;
+  if (!choice) return;
+  choicePanel.innerHTML = `<p>${choice.text}</p>`;
+  for (const option of choice.options) {
+    const button = document.createElement("button");
+    button.className = "choice";
+    button.innerHTML = option.detail ? `${option.label}<small>${option.detail}</small>` : option.label;
+    button.addEventListener("click", () => {
+      const key = choice.key;
+      const awardsBefore = player.lastReport ? player.lastReport.awards.length : 0;
+      const news = resolveChoice(player, option.id);
+      const moments = choiceBigMoments(player, choice, option, news, awardsBefore);
+      if (!player.retired) news.push(...checkAchievements(player).map((n) => `🏅 업적 달성: ${n}`));
+      if (player.retired) {
+        localStorage.removeItem(SAVE_KEY);
+        showRetired(player);
+        return;
+      }
+      addReaction(player, player.lastReport, news, reactionPool(key, option, player), { team: player.team, nick: player.nickname || "" });
+      savePlayer(player);
+      showPlayer(player);
+      showBigMoments(moments);
+    });
+    choicePanel.appendChild(button);
+  }
+}
+
+// ---------- 시즌 결과 탭 ----------
+function batRecordHtml(b) {
+  return `<table><tr><th>경기</th><th>타율</th><th>홈런</th><th>타점</th><th>득점</th><th>도루</th></tr>
+    <tr><td>${b.G}</td><td>${fmtRate(b.AVG)}</td><td>${b.HR}</td><td>${b.RBI}</td><td>${b.R}</td><td>${b.SB}</td></tr>
+    <tr><th>출루율</th><th>장타율</th><th>OPS</th><th>볼넷</th><th>삼진</th><th>WAR</th></tr>
+    <tr><td>${fmtRate(b.OBP)}</td><td>${fmtRate(b.SLG)}</td><td>${fmtRate(b.OPS)}</td><td>${b.BB}</td><td>${b.K}</td><td>${b.WAR}</td></tr></table>`;
+}
+
+function pitRecordHtml(p) {
+  return `<table><tr><th>경기</th><th>승</th><th>패</th><th>홀드</th><th>세이브</th><th>이닝</th></tr>
+    <tr><td>${p.G}</td><td>${p.W}</td><td>${p.L}</td><td>${p.HLD}</td><td>${p.SV}</td><td>${fmtInnings(p.outs)}</td></tr>
+    <tr><th>평균자책</th><th>탈삼진</th><th>볼넷</th><th>피홈런</th><th>WHIP</th><th>WAR</th></tr>
+    <tr><td>${p.ERA.toFixed(2)}</td><td>${p.K}</td><td>${p.BB}</td><td>${p.HR}</td><td>${p.WHIP.toFixed(2)}</td><td>${p.WAR}</td></tr></table>`;
+}
+
+function showSeasonResult(report) {
+  const box = $("tab-result");
+  if (!report) { box.innerHTML = "<p class='empty'>아직 치른 시즌이 없어요.</p>"; return; }
+  let html = `<h3>${report.year}년 (${koreanAge(report.age)}세) 시즌 <small>${LEAGUES[report.league].name} · ${report.team}</small></h3>`;
+
+  if (report.standing) {
+    const s = report.standing;
+    const ps = s.seed ? ` <span class="ps">${s.psLabel} 진출${report.league === "KBO" ? "" : ` · ${s.seed}번 시드`}</span>` : s.psLabel ? ` <span class="ps out">${s.psLabel} 탈락</span>` : "";
+    html += `<p class="standing">${s.group ? `${s.group} ` : ""}<b>${s.rank}위</b> / ${s.teams}팀 · ${s.w}승 ${s.l}패${ps}</p>`;
+  }
+  if (report.events.length) html += `<p class="chips">${report.events.map((e) => `<span>${e}</span>`).join("")}</p>`;
+  if (report.hsLeague) html += hsLeagueHtml(report.hsLeague);
+  if (report.hsTournaments) html += hsTournamentHtml(report.hsTournaments);
+  if (report.collegeCups) html += hsTournamentHtml(report.collegeCups, "대학 전국대회 성적");
+  if (report.standing && report.standing.table) html += standingTableHtml(report);
+  if (report.standing && report.standing.monthly) html += monthlyChartHtml(report);
+  if (report.bat) html += `<h4>타격 <small>${report.bat.role}</small></h4>` + batRecordHtml(report.bat);
+  if (report.pit) html += `<h4>투구 <small>${report.pit.role}</small></h4>` + pitRecordHtml(report.pit);
+  if (report.ranks) {
+    html += `<h4>리그 순위</h4><p class="chips">${report.ranks
+      .map((r) => `<span class="${r.rank <= 3 ? "top" : ""}">${r.label} ${r.rank > 30 ? "30위 밖" : r.rank + "위"}</span>`)
+      .join("")}</p>`;
+  }
+  if (report.national) html += `<p>🇰🇷 ${report.national.name}: <b>${report.national.result}</b></p>`;
+  if (report.awards.length) html += `<p class="chips awards">${report.awards.map((a) => awardChip(a)).join("")}</p>`;
+  if (report.postseason) html += postseasonHtml(report);
+  if (report.races) html += racesHtml(report);
+  if (report.allStar) html += `<p class="small">⭐ 올스타 선정${report.allStar.fanPick ? " (팬 투표 1위!)" : ""}${report.allStar.mvp ? " · 미스터 올스타 (올스타전 MVP)" : ""}</p>`;
+  if (report.salary) html += `<p class="small">올해 연봉 ${fmtMoney(report.salary)} 수령</p>`;
+  if (report.newAchievements && report.newAchievements.length) {
+    html += `<p class="chips awards">${report.newAchievements.map((a) => `<span>🏅 업적: ${a}</span>`).join("")}</p>`;
+  }
+  if (report.fameChange) html += `<p class="small">팬 여론 ${report.fameChange > 0 ? "+" : ""}${report.fameChange}</p>`;
+  if (report.rival) {
+    const r = report.rival;
+    html += `<div class="rival-box"><h4>⚔️ 라이벌 ${r.name} <small>${LEAGUES[r.league].name} · ${r.team} · OVR ${r.ovr}</small></h4>
+      <p>${r.line} · WAR ${r.WAR}${report.bat || report.pit ? ` <span class="${report.WAR >= r.WAR ? "win" : "lose"}">(나 ${report.WAR} → ${report.WAR >= r.WAR ? "승" : "패"})</span>` : ""}</p>
+      ${r.awards.length ? `<p class="chips">${r.awards.map((a) => `<span>${a}</span>`).join("")}</p>` : ""}</div>`;
+  }
+  html += `<div class="news"><h4>뉴스</h4>${report.news.map((n) => `<p>📰 ${n}</p>`).join("")}</div>`;
+  html += `<button class="secondary" onclick="setTab('board')">팬 반응 보러 가기 💬</button>`;
+  html += `<button onclick="setTab('train')">다음 시즌 준비하기 ⚾</button>`;
+  box.innerHTML = html;
+}
+
+// 고교 전국대회 성적표
+function hsLeagueHtml(list) {
+  return `<h4>주말리그 <small>(${list[0].region}권)</small></h4><ul class="hs-cups">${list
+    .map((x) => `<li><span>${x.half}</span><b class="${x.rank === 1 ? "gold" : x.qualified ? "good" : ""}">${x.rank}위 / ${x.size}팀 · ${x.w}승 ${x.l}패${x.qualified ? " · 본선 진출" : ""}</b></li>`)
+    .join("")}</ul><p class="small">전반기 상위 절반은 황금사자기·청룡기, 후반기 상위 절반은 대통령배 본선에 나가요. 이마트배·봉황대기는 모든 학교가 참가해요.</p>`;
+}
+
+function hsTournamentHtml(list, title) {
+  const cls = (r) => (r === "우승" ? "gold" : r === "준우승" || r === "4강" || r === "결승 진출" ? "good" : r === "8강" ? "mid" : "");
+  return `<h4>${title || "전국대회 성적"}</h4><ul class="hs-cups">${list
+    .map((t) => `<li><span>${t.name}</span><b class="${cls(t.result)}">${t.result === "결승 진출" ? "결승 (결정적 순간!)" : t.result}</b></li>`)
+    .join("")}</ul>`;
+}
+
+// 월별 순위 그래프 (SVG): 우리 팀은 굵은 금색 선, 다른 팀은 흐린 회색 선
+function monthlyChartHtml(report) {
+  const s = report.standing;
+  const m = s.monthly;
+  const n = m.months.length;
+  const N = s.teams;
+  const W = 340, H = 200, L = 34, R = 64, T = 12, B = 26;
+  const x = (i) => L + (i * (W - L - R)) / (n - 1);
+  const y = (rank) => T + ((rank - 1) * (H - T - B)) / (N - 1);
+  let svg = `<svg class="rank-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="월별 팀 순위">`;
+  // 가로 눈금선 (순위마다)
+  for (let r = 1; r <= N; r++) {
+    svg += `<line x1="${L}" x2="${W - R}" y1="${y(r)}" y2="${y(r)}" class="grid"/>`;
+    if (r === 1 || r === N || r % 5 === 0) svg += `<text x="${L - 6}" y="${y(r) + 4}" text-anchor="end" class="axis">${r}위</text>`;
+  }
+  m.months.forEach((mon, i) => (svg += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" class="axis">${mon}월</text>`));
+  // 다른 팀들
+  for (const [team, ranks] of Object.entries(m.ranks)) {
+    if (team === report.team) continue;
+    const pts = ranks.map((r, i) => `${x(i)},${y(r)}`).join(" ");
+    svg += `<polyline points="${pts}" class="other"><title>${team}: 최종 ${ranks[n - 1]}위</title></polyline>`;
+  }
+  // 우리 팀
+  const mine = m.ranks[report.team];
+  svg += `<polyline points="${mine.map((r, i) => `${x(i)},${y(r)}`).join(" ")}" class="mine"/>`;
+  mine.forEach((r, i) => {
+    const tip = `${m.months[i]}월: ${r}위 (누적 ${m.wins[report.team][i]}승)`;
+    svg += `<circle cx="${x(i)}" cy="${y(r)}" r="4.5" class="dot"/><circle cx="${x(i)}" cy="${y(r)}" r="12" class="hit"><title>${tip}</title></circle>`;
+  });
+  svg += `<text x="${x(n - 1) + 10}" y="${y(mine[n - 1]) + 4}" class="end">최종 ${mine[n - 1]}위</text></svg>`;
+
+  let html = `<h4>월별 순위</h4><p class="legend"><span class="sw mine"></span>${report.team} <span class="sw other"></span>다른 팀 <small>(점을 누르면 그달 성적)</small></p>${svg}`;
+  html += `<p class="small">${m.months.map((mon, i) => `${mon}월 ${mine[i]}위`).join(" → ")}</p>`;
+
+  // 내 월별 성적 막대
+  const my = s.myMonthly;
+  if (my) {
+    const max = Math.max(...my.values);
+    html += `<h4>${my.label}</h4><div class="month-bars">${my.values
+      .map((v, i) => `<div><span class="val">${my.isBat ? fmtRate(v) : v.toFixed(2)}</span><span class="bar-v" style="height:${Math.round((v / max) * 60) + 4}px"></span><span class="mon">${m.months[i]}월</span></div>`)
+      .join("")}</div>`;
+  }
+  return html;
+}
+
+// ---------- 반응 탭 (커뮤니티 댓글창) ----------
+function commentHtml(c, best) {
+  const who = c.ip ? `${c.nick}<span class="ip">(${c.ip})</span>` : `<b class="fixed">${c.nick}</b>`;
+  return `<li class="${best ? "best" : ""}">
+    <div class="c-head">${best ? '<span class="best-tag">BEST</span>' : ""}${who}<span class="c-time">${c.time}</span></div>
+    <div class="c-body">${c.text}</div>
+    <div class="c-foot"><span class="up">▲ ${c.likes}</span><span class="down">▼ ${c.dislikes}</span></div>
+  </li>`;
+}
+
+function showBoard(player, report) {
+  const box = $("tab-board");
+  if (!report || !report.comments) { box.innerHTML = "<p class='empty'>아직 반응이 없어요.</p>"; return; }
+  const comments = report.comments;
+  const best = [...comments].filter((c) => c.likes >= 50).sort((a, b) => b.likes - a.likes).slice(0, 2);
+  const views = 1000 + comments.length * randomInt(300, 900);
+  let html = `<div class="board">
+    <div class="board-title">⚾ 야구 갤러리</div>
+    <div class="post">
+      <div class="post-title">${report.news[0]}</div>
+      <div class="post-meta">ㅇㅇ · 조회 ${views.toLocaleString()} · 댓글 ${comments.length}</div>
+      <div class="post-body">${report.news.slice(1).map((n) => `<p>${n}</p>`).join("") || "<p>이번 시즌 어떻게 봄?</p>"}</div>
+    </div>
+    <div class="comment-count">전체 댓글 <b>${comments.length}</b>개</div>
+    <ul class="comments">${best.map((c) => commentHtml(c, true)).join("")}${comments.map((c) => commentHtml(c, false)).join("")}</ul>
+  </div>`;
+  box.innerHTML = html;
+}
+
+// ---------- 통산 기록 탭 (네이버 스탯창 스타일) ----------
+function batRow(label, team, b, cls) {
+  return `<tr class="${cls || ""}"><td class="sticky">${label}</td><td>${team}</td><td>${b.G}</td><td>${fmtRate(b.AVG)}</td><td>${b.PA}</td><td>${b.AB}</td>
+    <td>${b.R}</td><td>${b.H}</td><td>${b.D}</td><td>${b.T}</td><td>${b.HR}</td><td>${b.RBI}</td><td>${b.SB}</td><td>${b.BB}</td><td>${b.K}</td>
+    <td>${fmtRate(b.OBP)}</td><td>${fmtRate(b.SLG)}</td><td>${fmtRate(b.OPS)}</td><td>${b.WAR}</td></tr>`;
+}
+
+function pitRow(label, team, p, cls) {
+  return `<tr class="${cls || ""}"><td class="sticky">${label}</td><td>${team}</td><td>${p.G}</td><td>${p.GS}</td><td>${p.W}</td><td>${p.L}</td>
+    <td>${p.SV}</td><td>${p.HLD}</td><td>${fmtInnings(p.outs)}</td><td>${p.H}</td><td>${p.HR}</td><td>${p.BB}</td><td>${p.K}</td>
+    <td>${p.R}</td><td>${p.ER}</td><td>${p.ERA.toFixed(2)}</td><td>${p.WHIP.toFixed(2)}</td><td>${p.WAR}</td></tr>`;
+}
+
+// 통산 합계를 표 한 줄 모양으로
+function totalsAsBat(t) {
+  return { G: t.G, AVG: t.AVG, PA: t.PA, AB: t.AB, R: t.R, H: t.H, D: t.D, T: t.T, HR: t.HR, RBI: t.RBI, SB: t.SB, BB: t.BB, K: t.K, OBP: t.OBP, SLG: t.SLG, OPS: t.OPS, WAR: t.WAR };
+}
+function totalsAsPit(t) {
+  return { G: t.pG, GS: t.GS, W: t.W, L: t.L, SV: t.SV, HLD: t.HLD, outs: t.outs, H: t.pH, HR: t.pHR, BB: t.pBB, K: t.pK, R: t.pR, ER: t.ER, ERA: t.ERA, WHIP: t.WHIP, WAR: t.WAR };
+}
+
+function showRecord(player) {
+  $("tab-record").innerHTML = recordHtml(player);
+}
+
+// 시즌별·통산 기록표 (기록 탭과 은퇴 화면에서 같이 써요)
+// 상 이름표: 금메달은 금색, 은메달은 은색, 동메달은 동색
+function awardChip(name, text) {
+  const t = text || name;
+  if (name.includes("은메달")) return `<span class="silver">🥈 ${t}</span>`;
+  if (name.includes("동메달")) return `<span class="bronze">🥉 ${t}</span>`;
+  if (name.includes("금메달")) return `<span>🥇 ${t}</span>`;
+  return `<span>🏆 ${t}</span>`;
+}
+
+function recordHtml(player, noRival) {
+  if (!player.history.length) return "<p class='empty'>아직 기록이 없어요.</p>";
+  const teamName = (h) => (isAmateur(h.league) ? h.team : `${h.team.split(" ")[0]}${h.league === "KBO2" ? "(2군)" : ""}`);
+  const leaguesPlayed = [...new Set(player.history.map((h) => h.league))].filter((l) => TOP_LEAGUES.includes(l));
+  let html = "";
+
+  if (player.history.some((h) => h.bat)) {
+    html += `<h4>타격 기록</h4><div class="scroll"><table class="stat-table"><tr><th class="sticky">연도</th><th>팀</th><th>경기</th><th>타율</th><th>타석</th><th>타수</th>
+      <th>득점</th><th>안타</th><th>2타</th><th>3타</th><th>홈런</th><th>타점</th><th>도루</th><th>볼넷</th><th>삼진</th><th>출루율</th><th>장타율</th><th>OPS</th><th>WAR</th></tr>`;
+    for (const h of player.history) if (h.bat) html += batRow(h.year || h.age, teamName(h), h.bat, isAmateur(h.league) ? "amateur" : "");
+    for (const lg of leaguesPlayed) html += batRow(`${LEAGUES[lg].name} 통산`, "", totalsAsBat(careerTotals(player, [lg])), "total");
+    html += batRow("통산(고교 제외)", "", totalsAsBat(careerTotals(player)), "total");
+    html += "</table></div>";
+  }
+  if (player.history.some((h) => h.pit)) {
+    html += `<h4>투구 기록</h4><div class="scroll"><table class="stat-table"><tr><th class="sticky">연도</th><th>팀</th><th>경기</th><th>선발</th><th>승</th><th>패</th>
+      <th>세이브</th><th>홀드</th><th>이닝</th><th>피안타</th><th>피홈런</th><th>볼넷</th><th>삼진</th><th>실점</th><th>자책</th><th>평균자책</th><th>WHIP</th><th>WAR</th></tr>`;
+    for (const h of player.history) if (h.pit) html += pitRow(h.year || h.age, teamName(h), h.pit, isAmateur(h.league) ? "amateur" : "");
+    for (const lg of leaguesPlayed) html += pitRow(`${LEAGUES[lg].name} 통산`, "", totalsAsPit(careerTotals(player, [lg])), "total");
+    html += pitRow("통산(고교 제외)", "", totalsAsPit(careerTotals(player)), "total");
+    html += "</table></div>";
+  }
+  html += `<p class="small">회색 줄은 고교·아마추어 기록이라 통산에서 빠져요. 표는 옆으로 밀어서 볼 수 있어요.</p>`;
+
+  const awardList = Object.entries(player.awards);
+  html += `<h4>수상 경력</h4>${awardList.length ? `<p class="chips awards">${awardList.map(([k, v]) => awardChip(k, `${k} ${v}회`)).join("")}</p>` : "<p class='small'>아직 없어요.</p>"}`;
+  if (player.nicknames && player.nicknames.length) {
+    html += `<h4>얻은 별명</h4><p class="chips">${player.nicknames.map((n) => `<span>${n}</span>`).join("")}</p>`;
+  }
+  if (!noRival) html += rivalCompareHtml(player); // 은퇴 화면에서는 라이벌 비교를 빼요
+  return html;
+}
+
+// 나 vs 라이벌 통산 비교표
+function rivalCompareHtml(player) {
+  const r = player.rival;
+  if (!r) return "";
+  const rs = rivalSummary(r);
+  const me = careerTotals(player);
+  const rows = [
+    ["소속", player.team, r.retired ? "은퇴" : r.team],
+    ["최고 OVR", player.bestOvr, r.bestOvr],
+    ["통산 WAR", me.WAR, rs.WAR],
+    ["MVP", countAward(player, "MVP"), rs.MVP],
+    ["우승", countAward(player, "시리즈 우승"), rs.champs],
+  ];
+  let html = `<h4>⚔️ 라이벌 비교 <small>${r.school} 출신 ${r.position} ${r.name}</small></h4><table class="rival-table"><tr><th></th><th>나</th><th>${r.name}</th></tr>`;
+  for (const [label, a, b] of rows) html += `<tr><td>${label}</td><td>${a}</td><td>${b}</td></tr>`;
+  return html + "</table>";
+}
+
+// ---------- 재산 탭 ----------
+function showMoney(player) {
+  const box = $("tab-money");
+  const c = player.contract;
+  let html = `<div class="money-top"><span>보유 자산</span><b>${fmtMoney(player.money)}</b></div>`;
+  if (c) {
+    html += `<p>계약: ${c.team} (${LEAGUES[c.league] ? LEAGUES[c.league].name : ""}) · 연봉 <b>${fmtMoney(c.salary)}</b>`;
+    if (c.isFA) html += ` · ${c.total ? `총액 ${fmtMoney(c.total)} · ` : ""}남은 기간 ${c.years}년`;
+    html += "</p>";
+  } else {
+    html += "<p>아직 아마추어라 수입이 없어요.</p>";
+  }
+  html += serviceHtml(player);
+  html += `<p class="small">연봉의 65%가 저축돼요 (세금·생활비 제외). 가격은 ${gameYear(player)}년 물가 기준이에요.</p>`;
+
+  html += shopHtml(player);
+  box.innerHTML = html;
+}
+
+$("tab-money").addEventListener("click", (event) => {
+  const hire = event.target.dataset.hire;
+  if (hire) {
+    const years = Number(event.target.dataset.years);
+    const item = SHOP_ITEMS.find((i) => i.id === hire);
+    const fee = serviceFee(currentPlayer, item, years);
+    if (!confirm(`${item.name}와 ${years}년 계약할까요? 해마다 ${fmtMoney(fee)}씩 나가요 (올해 분은 지금 결제).`)) return;
+    if (hireService(currentPlayer, hire, years)) {
+      const line = `${currentPlayer.name}, ${item.name}와 ${years}년 계약… 몸 관리에 진심`;
+      addReaction(currentPlayer, currentPlayer.lastReport, [line], FAN.shopping, { item: item.name });
+      savePlayer(currentPlayer);
+      showPlayer(currentPlayer);
+      setTab("money");
+    }
+    return;
+  }
+  const id = event.target.dataset.buy;
+  if (!id) return;
+  const item = SHOP_ITEMS.find((i) => i.id === id);
+  if (!confirm(`${item.name}을(를) ${fmtMoney(itemPrice(currentPlayer, item))}에 살까요?`)) return;
+  if (buyItem(currentPlayer, id)) {
+    const line = fillText(NEWS.special.shopping, currentPlayer, { item: item.name });
+    addReaction(currentPlayer, currentPlayer.lastReport, [line], FAN.shopping, { item: item.name });
+    savePlayer(currentPlayer);
+    showPlayer(currentPlayer);
+    setTab("money");
+  }
+});
+
+// FA·포스팅·서비스타임 현황 (실제 규정)
+function serviceHtml(player) {
+  if (isAmateur(player.league)) return "";
+  const s = player.kboService || 0;
+  let html = `<div class="service"><h4>FA·해외 진출 현황</h4><p>KBO 1군 등록 <b>${s}시즌</b> (${player.collegeGrad ? "대졸" : "고졸"} FA 기준 ${kboFaNeeded(player)}시즌)`;
+  const left = seasonsToFa(player);
+  html += left > 0 ? ` · FA까지 <b>${left}시즌</b>` : " · <b>FA 자격 있음</b>";
+  html += `</p><p>포스팅: ${s >= FA_RULES.posting ? "자격 있음 (구단 동의 필요)" : `1군 ${FA_RULES.posting}시즌부터 (${FA_RULES.posting - s}시즌 남음)`}`;
+  if (player.faCount) html += ` · FA 계약 ${player.faCount}회`;
+  html += "</p>";
+  if (player.mlbService) html += `<p>MLB 서비스타임 <b>${player.mlbService}년</b> · ${player.mlbService >= 6 ? "FA 가능" : player.mlbService >= 3 ? "연봉조정 대상" : "연봉조정 전"}</p>`;
+  if (player.kboRights) html += `<p class="small">KBO 복귀 시 보류권: ${player.kboRights}</p>`;
+  html += `<p class="small">1군 등록일수 145일(시즌의 약 78%)을 채운 해만 1시즌으로 쳐요. 2군·상무·해외 기간은 빠져요. FA 계약 뒤 다시 FA가 되려면 1군 4시즌이 필요해요.</p></div>`;
+  return html;
+}
+
+// ---------- 업적 도감 ----------
+function showAchievements(box) {
+  const got = loadAchievements();
+  const done = ACHIEVEMENTS.filter((a) => got[a.id]).length;
+  let html = `<p class="ach-count">달성 <b>${done}</b> / ${ACHIEVEMENTS.length} <small>(모든 선수 합산, 이 브라우저에 저장)</small></p>`;
+  const groups = [...new Set(ACHIEVEMENTS.map((a) => a.group))];
+  for (const g of groups) {
+    html += `<h4>${g}</h4><ul class="ach">`;
+    for (const a of ACHIEVEMENTS.filter((x) => x.group === g)) {
+      const info = got[a.id];
+      html += `<li class="${info ? "on" : ""}"><b>${info ? "🏅" : "🔒"} ${a.name}</b><small>${a.desc}</small>${info ? `<small class="by">${info.year}년 · ${info.by}</small>` : ""}</li>`;
+    }
+    html += "</ul>";
+  }
+  box.innerHTML = html;
+}
+
+// 명예의 전당 표
+function hofHallHtml() {
+  const hall = loadHof();
+  if (!hall.length) return "<p class='small'>아직 헌액된 선수가 없어요. 첫 번째 주인공이 돼 보세요.</p>";
+  let html = "<table><tr><th>헌액</th><th>이름</th><th>득표</th><th>WAR</th><th>MVP</th></tr>";
+  for (const h of [...hall].sort((a, b) => b.pct - a.pct)) {
+    html += `<tr><td>${h.year}</td><td>${h.name}${h.nickname ? ` <small>'${h.nickname}'</small>` : ""}</td><td>${h.pct}%</td><td>${h.WAR}</td><td>${h.MVP}</td></tr>`;
+  }
+  return html + "</table>";
+}
+
+// ---------- 은퇴 화면 ----------
+function showRetired(player) {
+  const t = careerTotals(player);
+  const awardList = Object.entries(player.awards).map(([k, v]) => `${k} ${v}회`).join(", ") || "없음";
+  let html = `<h2>${player.name} 은퇴</h2>
+    <p>${player.school} 출신 · ${gameYear(player)}년 ${koreanAge(player.age)}세 은퇴 · 최고 OVR ${player.bestOvr}</p>
+    <p>통산 WAR <b>${t.WAR}</b> · 모은 재산 <b>${fmtMoney(player.money)}</b></p>
+    ${player.nickname ? `<p>별명: '${player.nickname}' · 팬 여론 ${fameLabel(player.fame || 0)}</p>` : ""}
+    ${player.retireNews ? `<p>📰 ${player.retireNews}</p>` : ""}
+    ${player.myManagers && player.myManagers.length ? `<p>함께한 감독: ${player.myManagers.join(", ")}</p>` : ""}`;
+  if (t.AB) html += `<p>타격: 타율 ${fmtRate(t.AVG)} · ${t.HR}홈런 · ${t.RBI}타점 · OPS ${fmtRate(t.OPS)}</p>`;
+  if (t.outs) html += `<p>투구: ${t.W}승 ${t.L}패 ${t.SV}세이브 ${t.HLD}홀드 · 평균자책 ${t.ERA.toFixed(2)} · ${t.pK}탈삼진</p>`;
+  html += `<p>수상: ${awardList}</p>`;
+  html += `<details class="retire-record" open><summary>📊 시즌별·통산 기록</summary>${recordHtml(player)}</details>`;
+  $("retire-summary").innerHTML = html;
+
+  const ranking = loadRanking();
+  let table = "<table><tr><th>#</th><th>이름</th><th>통산 WAR</th><th>MVP</th><th>우승</th><th>재산</th></tr>";
+  ranking.slice(0, 10).forEach((r, i) => {
+    const me = r.name === player.name && r.WAR === careerTotals(player).WAR;
+    table += `<tr class="rank-row${me ? " mine" : ""}" data-rank="${i}"><td>${i + 1}</td><td>${r.name}${r.history ? " 🔍" : ""}</td><td><b>${r.WAR}</b></td><td>${r.MVP}</td><td>${r.champs}</td><td>${r.money !== undefined ? fmtMoney(r.money) : "-"}</td></tr>`;
+  });
+  $("ranking").innerHTML = table + `</table><p class="small">선수 이름을 누르면 통산 기록을 볼 수 있어요.</p><div id="ranking-detail"></div>`;
+
+  // 명예의 전당 투표 결과
+  const hof = player.hof;
+  if (hof && hof.eligible === false) {
+    $("hof-result").innerHTML = `<h3>명예의 전당 투표</h3><p>프로 ${hof.proYears}시즌이라 후보 자격(프로 10시즌)이 없어요.</p>`;
+  } else if (hof) {
+    const bars = hof.ballots.map((b) => `<div class="ballot"><span>${b.year}</span><span class="vbar"><i style="width:${b.pct}%" class="${b.pct >= 75 ? "in" : ""}"></i><em></em></span><b>${b.pct}%</b></div>`).join("");
+    const verdict = hof.inducted
+      ? `🏛️ <b>${hof.ballot === 1 ? "첫 투표에서" : `${hof.ballot}번째 투표에서`} 명예의 전당 헌액!</b>`
+      : hof.dropped ? "득표율 5% 미만으로 후보에서 빠졌어요." : "10번의 투표에서 끝내 75%를 넘지 못했어요.";
+    $("hof-result").innerHTML = `<h3>명예의 전당 투표 <small>(은퇴 5년 뒤부터, 75% 이상 헌액)</small></h3><p>${verdict}</p><div class="ballots">${bars}</div>`;
+  }
+  $("hof-hall").innerHTML = hofHallHtml();
+  showAchievements($("ach-retired"));
+
+  createScreen.hidden = true;
+  playerScreen.hidden = true;
+  retiredScreen.hidden = false;
+}
+
+// ---------------------------------------------
+// 5. 저장 / 불러오기
+// ---------------------------------------------
+
+function savePlayer(player) {
+  localStorage.setItem(SAVE_KEY, JSON.stringify(player));
+}
+
+function loadPlayer() {
+  const text = localStorage.getItem(SAVE_KEY);
+  if (!text) return null;
+  const player = JSON.parse(text);
+  if (!player.season) player.season = 1;
+  initCareer(player);
+  // 예전 버전 저장 데이터: 댓글 형식이 달라서 새로 만들어요
+  if (player.lastReport && !player.lastReport.comments) player.lastReport = null;
+  return player;
+}
+
+// ---------------------------------------------
+// 6. 버튼 연결
+// ---------------------------------------------
+
+form.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const player = createPlayer({
+    name: $("name").value.trim(),
+    type: typeSelect.value,
+    position: positionSelect.value,
+    hand: $("hand").value,
+    school: schoolSelect.value,
+    style: styleSelect.value,
+  });
+  savePlayer(player);
+  showPlayer(player);
+  setTab("train");
+});
+
+seasonButton.addEventListener("click", () => {
+  const report = runSeason(currentPlayer, getCheckedFocus());
+  currentPlayer.lastReport = report;
+  savePlayer(currentPlayer);
+  showPlayer(currentPlayer);
+  setTab("result");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  showBigMoments(seasonBigMoments(report)); // 수상하면 큰 화면으로
+});
+
+retireButton.addEventListener("click", () => {
+  if (!confirm("정말 은퇴할까요? 기록이 랭킹에 올라가요.")) return;
+  retirePlayer(currentPlayer);
+  localStorage.removeItem(SAVE_KEY);
+  showRetired(currentPlayer);
+});
+
+$("reset-button").addEventListener("click", () => {
+  if (!confirm("정말 처음부터 다시 할까요? 지금 선수는 사라져요.")) return;
+  localStorage.removeItem(SAVE_KEY);
+  playerScreen.hidden = true;
+  createScreen.hidden = false;
+});
+
+$("new-player-button").addEventListener("click", () => {
+  retiredScreen.hidden = true;
+  createScreen.hidden = false;
+});
+
+// 시작할 때 저장된 선수가 있으면 바로 보여줘요
+const saved = loadPlayer();
+if (saved) showPlayer(saved);
+
+// ---------------------------------------------
+// 7. v9: 순위표, 쇼핑, 큰 화면 알림
+// ---------------------------------------------
+
+// 지구(리그)별 최종 순위표
+function standingTableHtml(report) {
+  const s = report.standing;
+  const top = s.table[0];
+  let html = `<h4>${s.group || LEAGUES[report.league].name} 최종 순위</h4><table class="standings"><tr><th>순위</th><th>팀</th><th>승</th><th>패</th><th>승률</th><th>게임차</th></tr>`;
+  s.table.forEach((t, i) => {
+    const gb = ((top.w - t.w) + (t.l - top.l)) / 2;
+    const cls = [t.team === report.team ? "mine" : "", t.seed ? "in" : ""].join(" ");
+    html += `<tr class="${cls}"><td>${i + 1}</td><td>${t.team}${t.seed ? ` <small class="seed">PS${report.league === "KBO" ? "" : " " + t.seed}</small>` : ""}</td><td>${t.w}</td><td>${t.l}</td><td>${(t.w / (t.w + t.l)).toFixed(3).slice(1)}</td><td>${gb ? gb.toFixed(1) : "-"}</td></tr>`;
+  });
+  html += "</table>";
+  if (report.league === "MLB") html += `<p class="small">MLB: 리그마다 지구 우승 3팀 + 와일드카드 3팀이 포스트시즌에 나가요.</p>`;
+  if (report.league === "NPB") html += `<p class="small">NPB: 리그마다 1~3위가 클라이맥스 시리즈에 나가요.</p>`;
+  if (report.league === "ABL") html += `<p class="small">호주리그: 11월~1월 겨울 리그, 팀당 40경기. 1~4위가 플레이오프에 나가 클랙스턴 실드를 다퉈요.</p>`;
+  return html;
+}
+
+// 쇼핑: 분류별, 전담 스태프는 1·3·5년 계약
+function shopHtml(player) {
+  let html = "<h4>쇼핑</h4>";
+  const cats = [...new Set(SHOP_ITEMS.map((i) => i.cat))];
+  for (const cat of cats) {
+    html += `<h5 class="shop-cat">${cat}</h5><ul class="shop">`;
+    for (const item of SHOP_ITEMS.filter((i) => i.cat === cat)) {
+      if (item.service) {
+        const s = player.services[item.id];
+        let right;
+        if (s) {
+          right = `<span class="owned-tag">계약 중 · 남은 ${s.left}년 · 연 ${fmtMoney(s.fee)}</span>`;
+        } else {
+          right = SERVICE_YEARS.map((y) => {
+            const fee = serviceFee(player, item, y.years);
+            return `<button data-hire="${item.id}" data-years="${y.years}" ${player.money >= fee ? "" : "disabled"}>${y.years}년<small>연 ${fmtMoney(fee)}</small></button>`;
+          }).join("");
+        }
+        html += `<li class="${s ? "owned" : ""}"><div><b>${item.name}</b><small>${item.desc} · 해마다 비용이 나가요</small></div><div class="years">${right}</div></li>`;
+      } else {
+        const price = itemPrice(player, item);
+        const owned = hasItem(player, item.id);
+        const canBuy = !owned && player.money >= price;
+        const fame = item.fame ? ` · 팬 여론 ${item.fame > 0 ? "+" : ""}${item.fame}` : "";
+        html += `<li class="${owned ? "owned" : ""}"><div><b>${item.name}</b><small>${item.desc}${fame}</small></div>
+          <button data-buy="${item.id}" ${canBuy ? "" : "disabled"}>${owned ? "보유 중" : fmtMoney(price)}</button></li>`;
+      }
+    }
+    html += "</ul>";
+  }
+  html += `<p class="small">전담 스태프는 계약할 때 첫해 비용을 내고, 시즌이 끝날 때마다 다음 해 비용이 빠져나가요. 3년 계약은 5%, 5년 계약은 10% 할인.</p>`;
+  return html;
+}
+
+// 선택지를 고른 뒤 큰 화면으로 보여줄 것
+function choiceBigMoments(player, choice, option, news, awardsBefore) {
+  const list = [];
+  if (choice.key === "clutch") {
+    const ok = player.lastClutch;
+    const r = player.lastReport;
+    const newAwards = r ? r.awards.slice(awardsBefore) : [];
+    list.push({
+      tone: ok ? "gold" : "bad",
+      kicker: `결정적 순간 · ${choice.stage}`,
+      title: ok ? "⚡ 성공!" : "💥 실패…",
+      lines: news,
+      awards: newAwards,
+    });
+  } else if (choice.key === "mlbDirect" && option.id === "go") {
+    list.push({ tone: "gold", kicker: "미국 직행", title: `🇺🇸 ${choice.org} 입단!`, lines: news });
+  } else if (choice.key === "fa" && option.offer && option.offer.mega) {
+    const o = option.offer;
+    list.push({ tone: "gold", kicker: "초대형 계약", title: `💰 ${o.team} ${o.years}년 ${fmtMoney(o.total)}!`, lines: [`연봉 ${fmtMoney(o.salary)} × ${o.years}년`, ...news] });
+  } else if (choice.key === "fa" && option.offer && option.offer.veteran) {
+    const o = option.offer;
+    list.push({ tone: "gold", kicker: `${koreanAge(player.age)}세의 해외 도전`, title: `${o.league === "MLB" ? "🇺🇸" : "🇯🇵"} ${o.team} 입단!`, lines: [`${LEAGUES[o.league].name} ${o.years === 2 ? "1+1년" : "1년"} 계약`, ...news] });
+  } else if (choice.key === "collegePick") {
+    list.push({ tone: "good", kicker: "대학 진학", title: `🎓 ${option.id} 입학!`, lines: news });
+  } else if (choice.key === "national" && option.id === "nretire") {
+    list.push({ tone: "good", kicker: "국가대표 은퇴", title: "🇰🇷 태극마크 반납", lines: news });
+  }
+  return list;
+}
+
+// 큰 화면 알림: 여러 개면 확인을 누를 때마다 다음 것
+let bigQueue = [];
+function showBigMoments(list) {
+  if (!list || !list.length) return;
+  bigQueue.push(...list);
+  if ($("big-modal").hidden) nextBigMoment();
+}
+
+function nextBigMoment() {
+  const m = bigQueue.shift();
+  const modal = $("big-modal");
+  if (!m) { modal.hidden = true; return; }
+  modal.className = m.tone || "gold";
+  modal.querySelector(".big-kicker").textContent = m.kicker || "";
+  modal.querySelector(".big-title").textContent = m.title;
+  let body = "";
+  if (m.awards && m.awards.length) body += `<p class="big-awards">${m.awards.map((a) => awardChip(a)).join("")}</p>`;
+  if (m.lines && m.lines.length) body += m.lines.map((l) => `<p>${l}</p>`).join("");
+  modal.querySelector(".big-body").innerHTML = body;
+  modal.hidden = false;
+}
+
+$("big-close").addEventListener("click", nextBigMoment);
+$("big-modal").addEventListener("click", (event) => {
+  if (event.target.id === "big-modal") nextBigMoment(); // 바깥을 눌러도 닫혀요
+});
+
+// 스카우트 평가: 드래프트 점수 = OVR + 학교(강호 +9 / 강팀 +6 / 중위권 +3) + 시즌 WAR x1.5(최대 8) + 전국대회(최대 4)
+function scoutHtml(player) {
+  const o = draftOutlook(player);
+  if (!o) return "";
+  const gap = o.score - o.line;
+  const verdict = o.round ? `<b class="good">지명권 · 예상 ${o.round}라운드</b>` : `<b class="bad">지명 기준까지 ${-gap}점</b>`;
+  return `<div class="scout"><h4>🔍 스카우트 평가 <small>(지난 시즌 기준)</small></h4>
+    <p>드래프트 점수 <b>${o.score}</b> / 지명 기준 ${o.line} · ${verdict}${o.mlb ? ' · <b class="gold">MLB 스카우트 관심</b>' : ""}</p>
+    <p class="small">점수 = OVR + ${player.league === "HS" ? "학교 수준 + 전국대회 성적 + " : "대학 검증 +3 + 대학 대회 성적 + "}시즌 WAR. OVR ${o.sure} 이상이면 점수와 상관없이 지명돼요. 확률이 아니라 이 기준으로 정해져요.</p></div>`;
+}
+
+// 포스트시즌 경기 결과
+const PS_NAMES = {
+  KBO: { 4: "와일드카드", 3: "준플레이오프", 2: "플레이오프", 1: "한국시리즈" },
+  NPB: { 3: "CS 퍼스트", 2: "CS 파이널", 1: "재팬시리즈" },
+  MLB: { 4: "와일드카드 시리즈", 3: "디비전 시리즈", 2: "챔피언십 시리즈", 1: "월드시리즈" },
+  ABL: { 2: "준결승 시리즈", 1: "챔피언십 시리즈" },
+};
+function postseasonHtml(report) {
+  const names = PS_NAMES[report.league] || {};
+  return `<h4>포스트시즌</h4><p class="chips">${report.postseason
+    .map((g) => `<span class="${g.won && !g.pending ? "top" : ""}">${names[g.round] || g.round + "라운드"} ${g.pending ? "⚡ 결정적 순간!" : g.won ? "승리" : "탈락"}</span>`)
+    .join("")}</p>`;
+}
+
+// 수상 레이스: 내 점수 vs 수상 기준
+function racesHtml(report) {
+  const fmt = (r, v) => (r.unit === "ops" ? fmtRate(v) : v);
+  let html = `<h4>수상 레이스 <small>(기준을 넘으면 수상)</small></h4><table class="races"><tr><th>상</th><th>내 점수</th><th>기준</th><th>결과</th></tr>`;
+  for (const r of report.races) {
+    html += `<tr><td>${r.award}</td><td>${fmt(r, r.mine)}</td><td>${fmt(r, r.need)}</td><td class="${r.won ? "won" : "lost"}">${r.won ? "수상" : "-"}</td></tr>`;
+  }
+  html += "</table>";
+  if (report.impact !== undefined) html += `<p class="small">MVP 점수 = WAR + 타이틀 + 굵직한 기록(40-40, 3관왕) + 팀 성적 + 인기. 올스타 = WAR + 인기 + 팬 투표(구단 팬덤 + 팀 성적${report.fanVote !== undefined ? `, 올해 ${report.fanVote >= 0 ? "+" : ""}${report.fanVote}` : ""}). 골든글러브는 포지션별 WAR, 실버슬러거는 OPS, 수비상은 수비 능력치로 봐요.</p>`;
+  return html;
+}
+
+// 감독 면담 패널 (비시즌마다 1번)
+function meetingHtml(player) {
+  if (isAmateur(player.league) || isServing(player)) return "";
+  const now = [];
+  if (player.role === "closer") now.push("마무리 맡기로 함");
+  if (player.lineup === "leadoff") now.push("1번 타자");
+  if (player.lineup === "cleanup") now.push("4번 타자");
+  if (player.lineup === "pinch") now.push("대타 요원");
+  if (player.starterPromise && !player.lineup) now.push("주전 약속");
+  if (player.captainTeam === player.team) now.push("주장");
+  if (player.restPlan === player.team) now.push("체력 관리");
+  if (player.trustTeam === player.team && player.managerTrust) now.push(`감독 신뢰 ${player.managerTrust}/3`);
+  if (player.campWish) now.push(`캠프 경쟁 예정: ${MEETING_WISHES.find((w) => w.id === player.campWish.id).short}`);
+  const m = managerOf(player);
+  const st = MANAGER_STYLES[m.style];
+  let html = `<details class="meeting"><summary>🗣️ 감독 면담 <small>(비시즌마다 1번${now.length ? ` · 지금: ${now.join(", ")}` : ""})</small></summary>
+    <p class="manager"><b>${managerTitle(player)}</b> · ${st.name}${m.since ? ` · ${Math.max(1, gameYear(player) - m.since + 1)}년째` : ""}<small>${m.note ? `${m.note} · ` : ""}${st.desc}</small></p>
+    ${player.league === "KBO" ? managerBoardHtml(player, gameYear(player)) : ""}`;
+  if (!canMeetManager(player)) {
+    html += `<p class="small">이번 비시즌 면담은 끝났어요. 다음 시즌이 끝나면 다시 찾아갈 수 있어요.</p></details>`;
+    return html;
+  }
+  const wishes = meetingWishes(player);
+  if (!wishes.length) return html + `<p class="small">지금은 따로 요청할 게 없어요.</p></details>`;
+  html += `<ul class="positions">${wishes.map((w) => `<li><span>${w.label}<small>${w.hint}</small></span><button data-wish="${w.id}">말해 보기</button></li>`).join("")}</ul>`;
+  html += `<p class="small">감독은 실력, 최근 성적, 팀 내 입지를 보고 판단해요. 수락이 아니면 스프링캠프 경쟁으로 넘어가거나 거절될 수 있어요.</p></details>`;
+  return html;
+}
+
+// 역대 랭킹에서 선수를 누르면 그 선수의 시즌별·통산 기록
+$("ranking").addEventListener("click", (event) => {
+  const row = event.target.closest(".rank-row");
+  if (!row) return;
+  const r = loadRanking()[Number(row.dataset.rank)];
+  const box = $("ranking-detail");
+  if (!r) return;
+  if (box.dataset.open === row.dataset.rank) { box.innerHTML = ""; box.dataset.open = ""; return; } // 한 번 더 누르면 닫기
+  box.dataset.open = row.dataset.rank;
+  if (!r.history) {
+    box.innerHTML = `<p class="small">${r.name}: 예전 버전에서 은퇴한 선수라 시즌별 기록이 없어요.</p>`;
+    return;
+  }
+  const past = { history: r.history, awards: r.awards || {}, nicknames: r.nicknames || [] };
+  box.innerHTML = `<div class="rank-detail"><h4>${r.name}${r.nickname ? ` '${r.nickname}'` : ""} <small>${r.school || ""} · 통산 WAR ${r.WAR}${r.hof ? " · 🏛️ 명예의 전당" : ""}</small></h4>${recordHtml(past, true)}</div>`;
+  box.scrollIntoView({ behavior: "smooth", block: "start" });
+});
