@@ -45,8 +45,8 @@ function checkMilitary(player, report) {
   if (player.age < 23) return;
   const pending = [player.pendingChoice, ...player.choiceQueue].filter(Boolean);
   if (pending.some((c) => c.key === "forcedRetire" || c.key === "military")) return;
-  // 해외(MLB·마이너리그)에서 뛰면 국외 체류로 입대를 계속 미룰 수 있어요 (최지만 케이스)
-  // 게임에서는 만 36세까지 자동으로 연기돼요. 국내(KBO 등)로 돌아오면 그때 가야 해요
+  // 해외(MLB·마이너리그)에서 뛰면 국외 체류로 입대를 계속 미룰 수 있음 (최지만 케이스)
+  // 게임에서는 만 36세까지 자동으로 연기됨. 국내(KBO 등)로 돌아오면 그때 가야 함
   const abroad = ["MLB", "MILB"].includes(player.league);
   if (abroad && player.age < ABROAD_DEFER_AGE) {
     if (player.age >= 28 && !player.abroadDefer) {
@@ -57,12 +57,12 @@ function checkMilitary(player, report) {
     return;
   }
   const mustGo = player.age >= 28;
-  // FA 협상 중이면 이번엔 묻지 않아요 (28세는 예외)
+  // FA 협상 중이면 이번엔 묻지 않음 (28세는 예외)
   if (!mustGo && pending.some((c) => c.key === "fa")) return;
 
   const options = [];
   const ovr = getOvrs(player).best;
-  if (PRO_LEAGUES.includes(player.league) && ovr >= LEAGUES.KBO.level - 8 && player.age <= 28) { // 상무는 지원 나이 제한이 있어요
+  if (PRO_LEAGUES.includes(player.league) && ovr >= LEAGUES.KBO.level - 8 && player.age <= 28) { // 상무는 지원 나이 제한이 있음
     options.push({ id: "SANGMU", label: "상무 입대", detail: "2년간 퓨처스리그에서 경기 출전 · 군 급여만 받아요" });
   }
   options.push({ id: "SOCIAL", label: "사회복무요원", detail: "2년간 경기 없음 · 퇴근 후 개인 훈련만 (능력치 하락 위험)" });
@@ -80,7 +80,7 @@ function checkMilitary(player, report) {
   });
 }
 
-const ABROAD_DEFER_AGE = 37; // 만 37세가 되면 국외 체류 연기도 끝나요
+const ABROAD_DEFER_AGE = 37; // 만 37세가 되면 국외 체류 연기도 끝남
 
 // 입대
 function enlist(player, unit) {
@@ -128,7 +128,7 @@ function serviceSeason(player, focusKeys) {
   player.teamFocus = false;
   player.nextMod = 0;
 
-  // 성장: 훈련한 능력치는 조금 오르고, 나머지는 떨어지기 쉬워요
+  // 성장: 훈련한 능력치는 조금 오르고, 나머지는 떨어지기 쉬움
   const base = baseGrowth(player.age);
   const gains = {};
   for (const key of Object.keys(player.stats)) {
@@ -181,7 +181,7 @@ function createRival(player) {
     growthType: rollGrowthType(),
   };
   rival.team = rival.school;
-  // 라이벌은 처음부터 조금 더 재능 있는 선수예요
+  // 라이벌은 처음부터 조금 더 재능 있는 선수임
   rival.stats = rollStats(type, style);
   for (const key of Object.keys(rival.stats)) rival.stats[key] = clamp(rival.stats[key] + 3, 1, 99);
   // 이미 프로에 간 예전 저장 데이터: 라이벌도 비슷한 실력으로 프로에서 시작
@@ -230,7 +230,7 @@ function rivalSeason(player, report) {
 
   r.history.push({ year: report.year, age: r.age, league: r.league, team: r.team, WAR: rec.WAR, line, awards });
 
-  // 성장: 포지션 핵심 능력치 2개를 훈련해요
+  // 성장: 포지션 핵심 능력치 2개를 훈련함
   const keys = Object.keys(r.stats);
   const focus = pickMany(POSITION_FOCUS[r.position] || keys, 2);
   growPlayer(r, focus, { WAR: rec.WAR, events: [] });
@@ -300,7 +300,7 @@ function updateNickname(player, report) {
   if (index < 0) return;
   const nick = fillText(NICKNAME_RULES[index].nick, player, {});
   if (nick === player.nickname) return;
-  // 이미 별명이 있으면 더 강한(위쪽) 별명이거나 반반 확률로만 바뀌어요
+  // 이미 별명이 있으면 더 강한(위쪽) 별명이거나 반반 확률로만 바뀜
   const current = NICKNAME_RULES.findIndex((rule) => fillText(rule.nick, player, {}) === player.nickname);
   if (player.nickname && current >= 0 && index > current && Math.random() < 0.5) return;
   player.nickname = nick;
@@ -328,14 +328,14 @@ function fameLabel(fame) {
 function seasonFame(player, report) {
   const before = player.fame || 0;
   if (!isAmateur(report.league)) {
-    // 팬덤이 큰 팀은 잘하면 더 뜨겁고, 못하면 더 차가워요
+    // 팬덤이 큰 팀은 잘하면 더 뜨겁고, 못하면 더 차가움
     const fan = 0.7 + teamFandom(report.team) * 0.12; // 1 → 0.82배, 5 → 1.3배
     if (report.grade === "great") changeFame(player, 6 * fan);
     else if (report.grade === "good") changeFame(player, 2 * fan);
     else if (report.grade === "bad") changeFame(player, -4 * fan);
   }
   changeFame(player, Math.min(report.awards.length * 2, 8));
-  // 시간이 지나면 여론은 조금씩 잊혀요
+  // 시간이 지나면 여론은 조금씩 잊힘
   player.fame = Math.round(player.fame * 0.95);
   report.fameChange = player.fame - before;
 }
@@ -350,13 +350,13 @@ function maybeLifeEvent(player, report) {
   const interviews = eligible.filter((ev) => ev.interview);
   const others = eligible.filter((ev) => !ev.interview);
   let ev = null;
-  // 덜 본 이벤트가 먼저 나와요
+  // 덜 본 이벤트가 먼저 나옴
   const seen = player.eventLog || (player.eventLog = {});
   const fresh = (list) => {
     const min = Math.min(...list.map((e) => seen[e.id] || 0));
     return pick(list.filter((e) => (seen[e.id] || 0) === min));
   };
-  // 연애·결혼은 따로 챙겨요: 연애 중(만 26세+)이면 비시즌마다 40%로 결혼 이야기, 솔로면 15%로 새 인연
+  // 연애·결혼은 따로 챙김: 연애 중(만 26세+)이면 비시즌마다 40%로 결혼 이야기, 솔로면 15%로 새 인연
   const marriage = eligible.find((e) => e.id === "marriage");
   const dating = eligible.find((e) => e.id === "dating");
   if (marriage && Math.random() < 0.4) ev = marriage;
@@ -414,7 +414,7 @@ function resolveLifeChoice(player, choice, option) {
   return news;
 }
 
-// story 선택지 처리 (career.js의 resolveChoice에서 불러요)
+// story 선택지 처리 (career.js의 resolveChoice에서 부름)
 function resolveStoryChoice(player, choice, option) {
   if (choice.key === "life") return resolveLifeChoice(player, choice, option);
   if (choice.key === "position") return resolvePositionChoice(player, choice, option);
@@ -432,7 +432,7 @@ function resolveStoryChoice(player, choice, option) {
 // 시즌이 끝난 뒤 이야기 정리 (기사 만든 다음)
 function afterSeasonStory(player, report) {
   seasonFame(player, report);
-  maybeClutch(player, report); // 결정적 순간은 맨 앞에 보여줘요 (우승 여부는 선택 뒤에 공개)
+  maybeClutch(player, report); // 결정적 순간은 맨 앞에 보여줌 (우승 여부는 선택 뒤에 공개)
   report.newAchievements = checkAchievements(player); // 업적 도감 (legacy.js)
   maybePositionOffer(player, report);
   rotateManagers(player, report); // 감독 교체 (world.js)
@@ -443,7 +443,7 @@ function afterSeasonStory(player, report) {
 // =============================================
 // 5. 프랜차이즈 스타
 // 한 팀에서 6시즌 이상 + 그 팀에서 WAR 12 이상 → 프랜차이즈 스타
-// 원소속팀이 FA 때 훨씬 많이 주고, 연봉 협상도 유리해요
+// 원소속팀이 FA 때 훨씬 많이 주고, 연봉 협상도 유리함
 // =============================================
 Object.assign(NEWS.special, {
   franchise: "{name}, 이제는 {team}의 얼굴… 명실상부 프랜차이즈 스타",
@@ -463,7 +463,7 @@ Object.assign(FAN, {
 
 NICKNAME_RULES.splice(3, 0, { nick: "{team}의 심장", when: (p) => p.franchise && p.franchise === p.team });
 
-// 지금 팀에서 연속으로 뛴 시즌 수와 WAR (군 복무는 건너뛰어요)
+// 지금 팀에서 연속으로 뛴 시즌 수와 WAR (군 복무는 건너뜀)
 function teamTenure(player, team) {
   let seasons = 0;
   let war = 0;
@@ -517,12 +517,12 @@ function retireStory(player) {
 
 // =============================================
 // 6. 포지션 변경
-// - 훈련 탭에서 비시즌마다 1번 직접 바꿀 수 있어요
-// - 나이·팀 사정에 따라 감독이 먼저 제안하기도 해요
+// - 훈련 탭에서 비시즌마다 1번 직접 바꿀 수 있음
+// - 나이·팀 사정에 따라 감독이 먼저 제안하기도 함
 // =============================================
 const DH = "지명타자";
 POSITION_FOCUS[DH] = ["contact", "power"];
-const HARD_POSITIONS = ["포수", "유격수"]; // 수비 55 이상만 갈 수 있어요
+const HARD_POSITIONS = ["포수", "유격수"]; // 수비 55 이상만 갈 수 있음
 
 // 이 선수가 갈 수 있는 포지션 목록
 function positionOptions(player) {
@@ -548,7 +548,7 @@ function changePosition(player, position, byTeam) {
   const from = player.position;
   player.position = position;
   player.positionChangedAt = player.season;
-  // 지명타자가 아닌 새 수비 위치는 한 시즌 적응 기간 (팀이 부탁한 경우는 지원을 받아 괜찮아요)
+  // 지명타자가 아닌 새 수비 위치는 한 시즌 적응 기간 (팀이 부탁한 경우는 지원을 받아 괜찮음)
   player.positionAdjust = position !== DH && !byTeam;
   return fillText(NEWS.special.position, player, { from, to: position });
 }
@@ -612,7 +612,7 @@ function beforeFeedStory(player, report) {
 }
 
 // =============================================
-// 7. 인터뷰 (자주 열려요)
+// 7. 인터뷰 (자주 열림)
 // =============================================
 for (const ev of LIFE_EVENTS) if (ev.id.startsWith("interview")) ev.interview = true;
 
@@ -716,7 +716,7 @@ function cupRoundName(rounds, i) {
   return ["준우승", "4강", "8강", "16강", "32강"][fromEnd] || `${i + 1}회전 탈락`;
 }
 
-// 토너먼트 하나: 라운드가 올라갈수록 상대가 강해져요
+// 토너먼트 하나: 라운드가 올라갈수록 상대가 강해짐
 function playCup(cup, strength, rounds) {
   for (let i = 0; i < rounds; i++) {
     const opp = 0.45 + (i / rounds) * 0.1 + (Math.random() - 0.5) * 0.12;
@@ -774,8 +774,8 @@ function playHsTournaments(player, report) {
   }
 }
 
-// 그 해 마지막으로 오른 결승은 결과를 숨겨 두고, 내가 결정적 순간에서 직접 정해요
-// (그보다 앞선 대회 우승은 이미 끝난 일이라 그대로 보여줘요)
+// 그 해 마지막으로 오른 결승은 결과를 숨겨 두고, 내가 결정적 순간에서 직접 정함
+// (그보다 앞선 대회 우승은 이미 끝난 일이라 그대로 보여줌)
 function holdLastFinal(report, cups) {
   for (let i = cups.length - 1; i >= 0; i--) {
     if (cups[i].result === "우승" || cups[i].result === "준우승") {
@@ -819,14 +819,14 @@ function hsTitles(player) {
 }
 
 // =============================================
-// 10. 결정적 순간 (없는 시즌도 있어요)
+// 10. 결정적 순간 (없는 시즌도 있음)
 // =============================================
 Object.assign(FAN, {
   clutchGood: ["소름 돋았다 진짜", "이게 스타지", "{name} 클러치 미쳤다", "오늘 야구 본 사람 승리자", "하이라이트 100번 돌려봄"],
   clutchBad: ["그걸 왜 거기서…", "새가슴 인증", "중요할 때 꼭 이러더라", "괜찮아 다음에 잘하면 돼", "오늘은 잠 못 잘 듯"],
 });
 
-// 끝난 시즌에 이미 들어간 기록에 상을 더해요
+// 끝난 시즌에 이미 들어간 기록에 상을 더함
 function lateAward(player, name) {
   player.awards[name] = (player.awards[name] || 0) + 1;
   const h = player.history[player.history.length - 1];
@@ -869,13 +869,13 @@ function maybeClutch(player, report) {
     const ps = report.postseason || [];
     const last = ps[ps.length - 1];
     const lostFinal = last && last.round === 1 && !last.won;
-    // 우승이 걸린 경기: 7전 4선승제면 4~7차전 중 하나 (7차전까지 가는 건 드물어요)
+    // 우승이 걸린 경기: 7전 4선승제면 4~7차전 중 하나 (7차전까지 가는 건 드묾)
     const need = (fin.bo + 1) / 2;
     const n = pick(champion ? fin.win : fin.lose);
     const stage = fin.bo === 1 ? `${fin.name} (단판)` : `${fin.name} ${n}차전`;
     const note = fin.bo === 1 ? "단판 승부, 이기면 우승" : n === fin.bo ? `운명의 ${n}차전` : `시리즈 ${need - 1}승 ${n - need}패, 이기면 우승`;
     if (champion) {
-      // 우승한 해는 무조건 우승 결정 경기를 내가 직접 치러요 (선택하기 전까지 우승은 비밀)
+      // 우승한 해는 무조건 우승 결정 경기를 내가 직접 치름 (선택하기 전까지 우승은 비밀)
       moment = { kind: "seriesHero", stage, series: fin.name, note };
       holdChampion(player, report, CHAMPIONSHIP[lg]);
     } else if (lostFinal && Math.random() < 0.5) {
@@ -892,8 +892,8 @@ function maybeClutch(player, report) {
   const level = LEAGUES[lg].level;
   let situation;
   if (moment.kind === "regular") {
-    // 노히트노런·사이클링 히트는 정말 드물어요 (KBO 역사에서 손에 꼽을 정도)
-    // 리그 수준보다 한참 잘하는 선발 투수 / 타자에게만, 그것도 시즌에 1~2% 정도로 찾아와요
+    // 노히트노런·사이클링 히트는 정말 드묾 (KBO 역사에서 손에 꼽을 정도)
+    // 리그 수준보다 한참 잘하는 선발 투수 / 타자에게만, 그것도 시즌에 1~2% 정도로 찾아옴
     const gap = (getOvrs(player)[side === "bat" ? "bat" : "pit"] || 0) - level;
     const starter = report.pit && report.pit.role && report.pit.role.includes("선발");
     if (side === "pit" && starter && Math.random() < clamp((gap - 4) * 0.002, 0, 0.02)) {
@@ -1001,7 +1001,7 @@ function addMonthlyStandings(standing, games, report) {
   const wins = {};
   for (const t of standing.table) {
     const pct = t.w / games;
-    // 달마다 승률이 출렁이지만 시즌 합계는 실제 성적과 같아요
+    // 달마다 승률이 출렁이지만 시즌 합계는 실제 성적과 같음
     const shares = MONTHS.map(() => clamp(pct + (Math.random() + Math.random() - 1) * 0.18, 0.15, 0.85) * perMonth);
     const scale = t.w / shares.reduce((s, x) => s + x, 0);
     let acc = 0;
@@ -1027,7 +1027,7 @@ function addMonthlyStandings(standing, games, report) {
   }
 }
 
-// 결정적 순간을 고르기 전까지 우승 소식을 숨겨요 (시즌 결과·기사·기록에서 잠시 빼기)
+// 결정적 순간을 고르기 전까지 우승 소식을 숨김 (시즌 결과·기사·기록에서 잠시 빼기)
 function holdChampion(player, report, name) {
   const i = report.awards.indexOf(name);
   if (i >= 0) report.awards.splice(i, 1);

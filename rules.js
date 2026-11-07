@@ -40,7 +40,7 @@ function kboFaNeeded(player) {
   return player.collegeGrad ? FA_RULES.collegeGrad : FA_RULES.hsGrad;
 }
 
-// 1군에 145일 이상 등록된 시즌만 FA 시즌으로 쳐줘요 (2군, 상무, 해외는 제외)
+// 1군에 145일 이상 등록된 시즌만 FA 시즌으로 쳐줌 (2군, 상무, 해외는 제외)
 function countKboService(player, report) {
   if (report.league !== "KBO") return;
   if ((report.gameFactor || 1) >= FA_RULES.serviceShare) {
@@ -100,7 +100,7 @@ function renewAfterFa(player, report) {
 // - 1군 등록 7시즌 + 구단 동의
 // - MLB 30개 구단과 30일 동안 협상, 못 하면 복귀 (다음 비시즌에 다시 가능)
 // - 포스팅 비용: 보장액 2,500만 달러까지 20%, 다음 2,500만 달러 17.5%, 그 위 15%
-// - NPB는 KBO와 공식 포스팅 협정이 없어서 구단 동의를 받아 이적해요
+// - NPB는 KBO와 공식 포스팅 협정이 없어서 구단 동의를 받아 이적함
 // ---------------------------------------------
 const DOLLAR_25M = 3500000; // 2,500만 달러 ≒ 350억 원 (만원 단위)
 
@@ -187,7 +187,7 @@ function resolvePostingOffer(player, choice, option) {
   const o = option.offer;
   const oldTeam = player.team;
   signContract(player, o);
-  player.kboRights = oldTeam; // 나중에 KBO로 돌아오면 원소속팀으로만 복귀할 수 있어요
+  player.kboRights = oldTeam; // 나중에 KBO로 돌아오면 원소속팀으로만 복귀할 수 있음
   return [
     `${player.name}, ${o.team}과 ${o.years}년 총액 ${fmtMoney(o.total)} 계약… 꿈의 무대로`,
     `${oldTeam}, ${o.league === "MLB" ? "포스팅 비용" : "이적료"} ${fmtMoney(postingFee(o.total))} 받는다`,
@@ -195,7 +195,7 @@ function resolvePostingOffer(player, choice, option) {
 }
 
 // ---------------------------------------------
-// 3. MLB 서비스타임: 6년 전에 계약이 끝나면 구단이 권리를 가져요
+// 3. MLB 서비스타임: 6년 전에 계약이 끝나면 구단이 권리를 가짐
 // ---------------------------------------------
 function mlbContractEnd(player, report) {
   const years = player.mlbService || 0;
@@ -205,7 +205,7 @@ function mlbContractEnd(player, report) {
   }
   const ovr = getOvrs(player).best;
   if (ovr < LEAGUES.MLB.level - 6) {
-    // 논텐더: 연봉조정 대신 풀어줘요 → 자유계약
+    // 논텐더: 연봉조정 대신 풀어줌 → 자유계약
     report.specials.push({ key: "nontender", team: player.team });
     pushChoice(player, faChoice(player, `서비스타임 ${years}년이라 아직 FA가 아니지만, 구단이 연봉조정 대신 논텐더(방출)를 택했어요. 자유롭게 팀을 고를 수 있어요.`));
     return;
@@ -215,7 +215,7 @@ function mlbContractEnd(player, report) {
     salary = Math.round(minSalary("MLB", player) * 1.15); // 연봉조정 전: 최저 연봉 근처
     report.specials.push({ key: "preArb", years, salary: fmtMoney(salary) });
   } else {
-    // 연봉조정: 시장가의 40% / 60% / 80% (3·4·5년차), 지난 연봉의 80% 밑으로는 안 깎여요
+    // 연봉조정: 시장가의 40% / 60% / 80% (3·4·5년차), 지난 연봉의 80% 밑으로는 안 깎임
     const share = { 3: 0.4, 4: 0.6, 5: 0.8 }[years] || 0.8;
     salary = Math.max(Math.round(marketValue(player, "MLB") * share), Math.round(player.contract.salary * 0.8));
     report.specials.push({ key: "arbitration", years, salary: fmtMoney(salary) });
@@ -228,7 +228,7 @@ function mlbContractEnd(player, report) {
 // ---------------------------------------------
 // 드래프트 지명 기준 점수 (능력치 + 학교 + 졸업반 성적 + 전국대회 성적)
 const DRAFT_LINE = { HS: 56, COLLEGE: 57, INDIE: 60, ABL: 60 };
-// 이 능력치(OVR)면 점수와 상관없이 지명돼요 (어지간하면 뽑히는 선)
+// 이 능력치(OVR)면 점수와 상관없이 지명됨 (어지간하면 뽑히는 선)
 const DRAFT_SURE = { HS: 52, COLLEGE: 54 };
 
 function isDrafted(player, score) {
@@ -243,7 +243,7 @@ function draftBonus(player, round) {
   return Math.round(MONEY.draftBonus[round - 1] * priceIndex(player) * (0.8 + Math.random() * 0.4));
 }
 
-// 고교 졸업 때: 지명되면 입단할지 대학에 갈지 골라요
+// 고교 졸업 때: 지명되면 입단할지 대학에 갈지 고름
 function hsDraft(player, report) {
   const score = draftScore(player, report);
   if (isDrafted(player, score)) {
@@ -295,7 +295,7 @@ function collegeDraft(player, report) {
   }
 }
 
-// 대학 진학: 고교 성적(드래프트 점수)에 맞는 대학들이 체육특기자로 데려가려 해요
+// 대학 진학: 고교 성적(드래프트 점수)에 맞는 대학들이 체육특기자로 데려가려 함
 function collegeOffers(player) {
   const last = player.lastReport && player.lastReport.league === "HS" ? player.lastReport : { WAR: 0 };
   const score = draftScore(player, last);
@@ -374,7 +374,7 @@ function resolveRulesChoice(player, choice, option) {
   return [];
 }
 
-// 예전 저장 데이터: 1군 시즌 수를 기록에서 다시 세요
+// 예전 저장 데이터: 1군 시즌 수를 기록에서 다시 셈
 function initRules(player) {
   if (player.kboService === undefined) {
     player.kboService = player.history.filter((h) => h.league === "KBO").length;
@@ -386,7 +386,7 @@ function initRules(player) {
   if (player.mlbService === undefined) player.mlbService = player.history.filter((h) => h.league === "MLB").length;
 }
 
-// 스카우트 평가 (훈련 탭에 보여줘요): 지금 실력과 지난 시즌 성적으로 계산한 드래프트 점수
+// 스카우트 평가 (훈련 탭에 보여줌): 지금 실력과 지난 시즌 성적으로 계산한 드래프트 점수
 function draftOutlook(player) {
   if (!isAmateur(player.league)) return null;
   const last = player.lastReport && isAmateur(player.lastReport.league) ? player.lastReport : { WAR: 0 };

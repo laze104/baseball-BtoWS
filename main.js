@@ -1,7 +1,7 @@
 // =============================================
 // main.js : 화면과 버튼 동작
 // (규칙은 career.js, 시뮬레이션은 sim.js, 돈은 money.js,
-//  국가대표는 national.js, 기사·댓글은 feed.js에 있어요)
+//  국가대표는 national.js, 기사·댓글은 feed.js에 있음)
 // =============================================
 
 const SAVE_KEY = "baseball-save"; // localStorage에 저장할 때 쓰는 이름
@@ -43,7 +43,7 @@ function updateOptionsByType() {
   fillSelect(styleSelect, Object.keys(STYLES[type]));
 }
 
-// 고등학교 목록: 이름·권역으로 검색할 수 있어요 (가나다순)
+// 고등학교 목록: 이름·권역으로 검색할 수 있음 (가나다순)
 const LEVEL_LABEL = { 3: "전통 강호", 2: "강팀", 1: "중위권" };
 const sortedSchools = [...HIGH_SCHOOLS].sort((a, b) => a.name.localeCompare(b.name, "ko"));
 
@@ -82,14 +82,14 @@ function getStatNames(type) {
   return { ...BATTER_STATS, ...PITCHER_STATS };
 }
 
-// 스타일 가중치대로 능력치 포인트를 나눠줘요
+// 스타일 가중치대로 능력치 포인트를 나눠줌
 function rollStats(type, styleName) {
   const keys = getStatKeys(type);
   const bonus = STYLES[type][styleName];
 
-  // 타고난 재능: 선수마다 총합이 START_TOTAL ± 30 사이에서 달라져요
+  // 타고난 재능: 선수마다 총합이 START_TOTAL ± 30 사이에서 달라짐
   let total = START_TOTAL + randomInt(-30, 30);
-  if (type === "twoway") total = Math.round(total * 1.6); // 이도류: 14개 능력치라 총량을 조금 더 줘요
+  if (type === "twoway") total = Math.round(total * 1.6); // 이도류: 14개 능력치라 총량을 조금 더 줌
 
   const weights = keys.map((key) => bonus[key] || 1);
   const weightSum = weights.reduce((sum, w) => sum + w, 0);
@@ -103,7 +103,7 @@ function rollStats(type, styleName) {
   return stats;
 }
 
-// 포지션에 맞춰 OVR(종합 능력치)을 계산해요
+// 포지션에 맞춰 OVR(종합 능력치)을 계산함
 function calcOvr(stats, statNames, position) {
   const focus = POSITION_FOCUS[position] || [];
   let total = 0;
@@ -206,7 +206,7 @@ function showPlayer(player) {
   playerScreen.hidden = false;
 }
 
-// 집중 능력치 체크박스 (지난 시즌 선택을 기억해요)
+// 집중 능력치 체크박스 (지난 시즌 선택을 기억함)
 function showFocusChoices(player) {
   const last = player.lastFocus || [];
   focusList.innerHTML = "";
@@ -214,7 +214,14 @@ function showFocusChoices(player) {
     const checked = last.includes(key) ? "checked" : "";
     focusList.innerHTML += `<label><input type="checkbox" value="${key}" ${checked}>${label}</label>`;
   }
-  seasonButton.disabled = getCheckedFocus().length !== 2;
+  refreshSeasonButton();
+}
+
+// 시즌 진행 버튼: 집중 능력치 2개 + 남은 선택지가 없어야 눌림
+function refreshSeasonButton() {
+  const waiting = currentPlayer && currentPlayer.pendingChoice;
+  seasonButton.disabled = waiting || getCheckedFocus().length !== 2;
+  seasonButton.textContent = waiting ? "선택지를 먼저 골라 주세요" : "시즌 진행";
 }
 
 function getCheckedFocus() {
@@ -223,7 +230,7 @@ function getCheckedFocus() {
 
 focusList.addEventListener("change", (event) => {
   if (getCheckedFocus().length > 2) event.target.checked = false;
-  seasonButton.disabled = getCheckedFocus().length !== 2;
+  refreshSeasonButton();
 });
 
 function militaryBadge(player) {
@@ -511,7 +518,7 @@ function showRecord(player) {
   $("tab-record").innerHTML = recordHtml(player);
 }
 
-// 시즌별·통산 기록표 (기록 탭과 은퇴 화면에서 같이 써요)
+// 시즌별·통산 기록표 (기록 탭과 은퇴 화면에서 같이 씀)
 // 상 이름표: 금메달은 금색, 은메달은 은색, 동메달은 동색
 function awardChip(name, text) {
   const t = text || name;
@@ -550,7 +557,7 @@ function recordHtml(player, noRival) {
   if (player.nicknames && player.nicknames.length) {
     html += `<h4>얻은 별명</h4><p class="chips">${player.nicknames.map((n) => `<span>${n}</span>`).join("")}</p>`;
   }
-  if (!noRival) html += rivalCompareHtml(player); // 은퇴 화면에서는 라이벌 비교를 빼요
+  if (!noRival) html += rivalCompareHtml(player); // 은퇴 화면에서는 라이벌 비교를 뺌
   return html;
 }
 
@@ -721,7 +728,7 @@ function loadPlayer() {
   const player = JSON.parse(text);
   if (!player.season) player.season = 1;
   initCareer(player);
-  // 예전 버전 저장 데이터: 댓글 형식이 달라서 새로 만들어요
+  // 예전 버전 저장 데이터: 댓글 형식이 달라서 새로 만듦
   if (player.lastReport && !player.lastReport.comments) player.lastReport = null;
   return player;
 }
@@ -746,6 +753,10 @@ form.addEventListener("submit", (event) => {
 });
 
 seasonButton.addEventListener("click", () => {
+  if (currentPlayer.pendingChoice) { // 혹시 모를 경우 한 번 더 막음
+    choicePanel.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
   const report = runSeason(currentPlayer, getCheckedFocus());
   currentPlayer.lastReport = report;
   savePlayer(currentPlayer);
@@ -774,7 +785,7 @@ $("new-player-button").addEventListener("click", () => {
   createScreen.hidden = false;
 });
 
-// 시작할 때 저장된 선수가 있으면 바로 보여줘요
+// 시작할 때 저장된 선수가 있으면 바로 보여줌
 const saved = loadPlayer();
 if (saved) showPlayer(saved);
 
@@ -887,7 +898,7 @@ function nextBigMoment() {
 
 $("big-close").addEventListener("click", nextBigMoment);
 $("big-modal").addEventListener("click", (event) => {
-  if (event.target.id === "big-modal") nextBigMoment(); // 바깥을 눌러도 닫혀요
+  if (event.target.id === "big-modal") nextBigMoment(); // 바깥을 눌러도 닫힘
 });
 
 // 스카우트 평가: 드래프트 점수 = OVR + 학교(강호 +9 / 강팀 +6 / 중위권 +3) + 시즌 WAR x1.5(최대 8) + 전국대회(최대 4)

@@ -56,7 +56,7 @@ button {
   margin-bottom: 6px;
 }
 
-/* 능력치 막대: --v 값(0~99)만큼 채워져요 */
+/* 능력치 막대: --v 값(0~99)만큼 채워짐 */
 .bar {
   height: 10px;
   background: linear-gradient(to right, #6fcf7f calc(var(--v) * 1%), #3a4d3f 0);

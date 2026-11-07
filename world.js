@@ -2,7 +2,7 @@
 // world.js : v9 추가 기능
 // 1. 지구·리그별 순위와 포스트시즌
 // 2. 시상식 (MVP, 골든글러브, 베스트나인, 실버슬러거, 골드글러브, 투수상, 올스타)
-// 3. 숨은 특성 (회춘형, 해외 체질) - 플레이어에게는 끝까지 안 알려줘요
+// 3. 숨은 특성 (회춘형, 해외 체질) - 플레이어에게는 끝까지 안 알려줌
 // 4. 전담 스태프 연 단위 계약
 // 5. 국가대표 은퇴
 // 6. 고졸 MLB 직행과 마이너리그
@@ -13,7 +13,7 @@ function gauss() {
   return (Math.random() + Math.random() + Math.random() + Math.random() - 2) * 1.7;
 }
 
-// 예전 저장 데이터에도 v9 정보를 채워줘요
+// 예전 저장 데이터에도 v9 정보를 채워줌
 function initWorld(player) {
   if (!player.hidden) {
     player.hidden = {
@@ -28,7 +28,7 @@ function initWorld(player) {
   }
   // 호주리그 구단 정리 (질롱 코리아는 2020년 해체)
   if (player.league === "ABL" && !TEAMS.ABL.includes(player.team)) player.team = pick(TEAMS.ABL);
-  // 예전 버전에서 산 트레이너는 1년 계약으로 바꿔줘요
+  // 예전 버전에서 산 트레이너는 1년 계약으로 바꿔줌
   for (const id of ["trainer", "rehab"]) {
     const i = (player.owned || []).indexOf(id);
     if (i >= 0) {
@@ -106,7 +106,7 @@ function teamStanding(player, report) {
   const games = STANDING_GAMES[lg] || LEAGUES[lg].games;
   const all = teams.map((team) => {
     let pct = 0.5 + (Math.random() + Math.random() - 1) * 0.12;
-    if (lg === "COLLEGE") pct += ((COLLEGES.find((c) => c.name === team) || { tier: 2 }).tier - 2) * 0.06; // 대학은 야구부 전력 차이가 커요
+    if (lg === "COLLEGE") pct += ((COLLEGES.find((c) => c.name === team) || { tier: 2 }).tier - 2) * 0.06; // 대학은 야구부 전력 차이가 큼
     if (team === player.team) pct += report.WAR * 0.006; // 내 활약이 팀 승률에 보탬
     if (lg === "KBO" && player.managers && player.managers[team] && player.managers[team].legend) pct += 0.015; // 레전드 감독 효과
     const w = Math.round(games * clamp(pct, 0.3, 0.7));
@@ -125,7 +125,7 @@ function teamStanding(player, report) {
     seed: mine.seed,
     psLabel: { KBO: "가을야구", NPB: "클라이맥스 시리즈", MLB: "포스트시즌", ABL: "플레이오프", KBO2: "챔피언결정전", SANGMU: "챔피언결정전", INDIE: "플레이오프", COLLEGE: "왕중왕전" }[lg] || null,
   };
-  // 정규시즌 1위는 바로 알려줘요 (포스트시즌 우승과는 따로)
+  // 정규시즌 1위는 바로 알려줌 (포스트시즌 우승과는 따로)
   if (rank === 1 && lg !== "HS") {
     const award = `정규시즌 우승 (${group ? group.name : LEAGUES[lg].name})`;
     player.awards[award] = (player.awards[award] || 0) + 1;
@@ -134,8 +134,8 @@ function teamStanding(player, report) {
   addMonthlyStandings(report.standing, games, report); // 월별 순위 그래프용 (story.js)
 }
 
-// 우승 (KBO·NPB·MLB): 포스트시즌 시리즈를 팀 전력(정규시즌 승률)과 내 활약으로 치러요
-// 시드가 높을수록 치를 시리즈가 적어요 (1위 팀은 바로 한국시리즈 등)
+// 우승 (KBO·NPB·MLB): 포스트시즌 시리즈를 팀 전력(정규시즌 승률)과 내 활약으로 치름
+// 시드가 높을수록 치를 시리즈가 적음 (1위 팀은 바로 한국시리즈 등)
 const PS_ROUNDS = {
   KBO: [1, 2, 3, 4, 4],          // 1위: 한국시리즈만, 5위: 와일드카드부터
   NPB: [2, 3, 3],                // 리그 1위: CS 파이널 + 재팬시리즈
@@ -211,9 +211,9 @@ function impactScore(player, report) {
   if (report.standing) {
     if (report.standing.seed === 1) s += 0.6;
     else if (report.standing.seed) s += 0.3;
-    else s -= 0.4; // 가을야구 못 간 팀은 표가 덜 와요
+    else s -= 0.4; // 가을야구 못 간 팀은 표가 덜 옴
   }
-  s += clamp((player.fame || 0) / 100, -0.3, 0.6); // 기자단도 사람이라 인기가 조금 반영돼요
+  s += clamp((player.fame || 0) / 100, -0.3, 0.6); // 기자단도 사람이라 인기가 조금 반영됨
   return s;
 }
 
@@ -228,7 +228,7 @@ function batPosition(player) {
 }
 
 // 수상 레이스: 내 점수가 기준(그 상을 받으려면 필요한 점수)을 넘으면 수상
-// 확률이 아니라 성적으로만 정해져요. 결과 탭에서 내 점수와 기준을 같이 보여줘요.
+// 확률이 아니라 성적으로만 정해짐. 결과 탭에서 내 점수와 기준을 같이 보여줌
 function race(player, report, award, mine, need, unit) {
   const won = mine >= need;
   report.races = report.races || [];
@@ -242,7 +242,7 @@ function seasonAwards(player, report) {
   const rc = AWARD_RACE[lg];
   if (!rc || !report.ranks) return;
   const games = LEAGUES[lg].games;
-  const two = lg !== "KBO"; // 리그가 2개면 경쟁자가 절반이라 기준이 조금 낮아요
+  const two = lg !== "KBO"; // 리그가 2개면 경쟁자가 절반이라 기준이 조금 낮음
   const b = report.bat && report.bat.G ? report.bat : null;
   const p = report.pit && report.pit.G ? report.pit : null;
   const name = awardLeague(report);
@@ -300,7 +300,7 @@ function seasonAwards(player, report) {
   }
   // 올해의 재기상 (MLB·NPB): 작년에 부진·부상·공백이었는데 올해 부활
   if ((lg === "MLB" || lg === "NPB") && player.history.length >= 2) {
-    const prev = player.history[player.history.length - 1]; // 아직 올해 기록은 안 들어갔어요
+    const prev = player.history[player.history.length - 1]; // 아직 올해 기록은 안 들어갔음
     const wasDown = prev.WAR < 1 || ["SANGMU", "SOCIAL"].includes(prev.league) || (prev.events || []).some((e) => e.includes("부상"));
     if (wasDown && !isAmateur(prev.league)) race(player, report, `${name} 올해의 재기상`, report.WAR, lg === "MLB" ? 4.5 : 4);
   }
@@ -333,8 +333,8 @@ function allStar(player, report) {
   }
   const rc = AWARD_RACE[lg];
   if (!rc) return;
-  // 부상으로 덜 뛴 해는 전반기 성적으로 봐줘요
-  // 팬 투표: 팬덤이 큰 팀 + 팀 성적이 좋으면 몰표 (백업 선수는 투표 대상이 잘 안 돼요)
+  // 부상으로 덜 뛴 해는 전반기 성적으로 봐줌
+  // 팬 투표: 팬덤이 큰 팀 + 팀 성적이 좋으면 몰표 (백업 선수는 투표 대상이 잘 안 됨)
   const backup = report.bat && report.bat.role && report.bat.role.startsWith("백업");
   const st = report.standing;
   const teamPct = st ? st.w / (st.w + st.l) : 0.5;
@@ -343,7 +343,7 @@ function allStar(player, report) {
   const fanVote = (f * (f > 0 ? 0.6 : 0.25) + clamp((teamPct - 0.5) * 10, -0.8, 1.3)) * (backup ? 0.3 : 1);
   report.fanVote = round(fanVote, 1);
   let score = report.WAR * (report.gameFactor < 1 ? 1.3 : 1) + fame / 50 + fanVote;
-  // 이정후처럼 압도적이면 팬덤이 작은 팀이어도 감독 추천·선수단 투표로 무조건 뽑혀요
+  // 이정후처럼 압도적이면 팬덤이 작은 팀이어도 감독 추천·선수단 투표로 무조건 뽑힘
   const dominant = report.WAR >= rc.allstar + 1.5 || report.awards.some((a) => Object.values(TITLE_NAMES).includes(a));
   if (dominant) score = Math.max(score, rc.allstar + 0.1);
   if (!race(player, report, "올스타", score, rc.allstar)) return;
@@ -358,13 +358,13 @@ function allStar(player, report) {
 }
 
 // =============================================
-// 3. 숨은 특성 (화면에는 절대 안 보여줘요)
+// 3. 숨은 특성 (화면에는 절대 안 보여줌)
 // =============================================
 // 시즌 시작 전 컨디션 보정
 function hiddenMod(player, report) {
   let mod = 0;
   const h = player.hidden || {};
-  // 해외 체질: NPB·MLB·마이너에서 실력 이상으로 통해요 (류현진, 이정후처럼)
+  // 해외 체질: NPB·MLB·마이너에서 실력 이상으로 통함 (류현진, 이정후처럼)
   if (h.overseas && ["NPB", "MLB", "MILB"].includes(player.league)) mod += 6;
   // 회춘 기간
   if (player.revival > 0) {
@@ -375,7 +375,7 @@ function hiddenMod(player, report) {
   return mod;
 }
 
-// 시즌 뒤: 늦게 꽃피는 선수는 30대에 갑자기 각성해요 (노경은처럼)
+// 시즌 뒤: 늦게 꽃피는 선수는 30대에 갑자기 각성함 (노경은처럼)
 function maybeRevival(player, report) {
   if (player.revivalUsed || player.age < 31 || player.age > 38 || isAmateur(player.league)) return;
   const h = player.hidden || {};
@@ -391,7 +391,7 @@ function maybeRevival(player, report) {
   report.bigMoments.push({ tone: "gold", kicker: "믿을 수 없는 일", title: "🔥 회춘!", lines: [`${koreanAge(player.age)}세에 찾아온 제2의 전성기`, "모든 능력치가 크게 올랐어요"] });
 }
 
-// 회춘 기간과 셰프는 노화를 늦춰요
+// 회춘 기간과 셰프는 노화를 늦춤
 function adjustGrowthBase(player, base) {
   if (player.revival > 0 && base < 0.3) return 0.3;
   if (hasItem(player, "chef") && base < 0) return base * 0.75;
@@ -412,7 +412,7 @@ function serviceFee(player, item, years) {
   return Math.round(itemPrice(player, item) * d);
 }
 
-// 계약할 때 첫해 비용을 내고, 다음 해부터는 시즌이 끝날 때마다 내요
+// 계약할 때 첫해 비용을 내고, 다음 해부터는 시즌이 끝날 때마다 냄
 function hireService(player, id, years) {
   const item = SHOP_ITEMS.find((i) => i.id === id);
   const fee = serviceFee(player, item, years);
@@ -422,7 +422,7 @@ function hireService(player, id, years) {
   return true;
 }
 
-// payday에서 불러요: 남은 기간을 줄이고 다음 해 비용을 내요
+// payday에서 부름: 남은 기간을 줄이고 다음 해 비용을 냄
 function payServices(player, report) {
   for (const [id, s] of Object.entries(player.services || {})) {
     const item = SHOP_ITEMS.find((i) => i.id === id);
@@ -458,7 +458,7 @@ const DOLLAR = 0.14; // 1달러 = 1,400원 = 0.14만원
 
 function maybeMlbDirect(player, report) {
   const ovr = getOvrs(player).best;
-  // 고교 최대어만 미국 구단이 직접 데려가요: 능력치 60 이상 + 드래프트 점수 72 이상
+  // 고교 최대어만 미국 구단이 직접 데려감: 능력치 60 이상 + 드래프트 점수 72 이상
   if (ovr < 60 || draftScore(player, report) < 72) return;
   const org = pick(TEAMS.MLB);
   const dollars = clamp(Math.round((ovr - 55) * 12 + (draftScore(player, report) - 72) * 5), 50, 200); // 만 달러 (실제 한국 고교 유망주: 약 50만~150만 달러)
@@ -477,7 +477,7 @@ function maybeMlbDirect(player, report) {
 
 function resolveMlbDirect(player, choice, option) {
   if (option.id !== "go") return [`${player.name}, ${choice.org} 제안 거절… "한국에서 먼저 증명하겠다"`];
-  // 국내 진로 선택지는 없애요
+  // 국내 진로 선택지는 없앰
   const domestic = ["draftSign", "undrafted"];
   player.choiceQueue = player.choiceQueue.filter((c) => !domestic.includes(c.key));
   if (player.pendingChoice && domestic.includes(player.pendingChoice.key)) nextChoice(player);
@@ -604,9 +604,9 @@ ACHIEVEMENTS.push(
 );
 
 // =============================================
-// 감독 면담 (v13): 비시즌마다 1번, 원하는 역할을 말해볼 수 있어요
-// 감독은 실력(OVR), 최근 성적, 팀 내 입지(프랜차이즈·인기)를 보고 판단해요
-// 결과: 수락 / 캠프 경쟁 후 결정 / 거절 (확정은 아니에요)
+// 감독 면담 (v13): 비시즌마다 1번, 원하는 역할을 말해볼 수 있음
+// 감독은 실력(OVR), 최근 성적, 팀 내 입지(프랜차이즈·인기)를 보고 판단함
+// 결과: 수락 / 캠프 경쟁 후 결정 / 거절 (확정은 아님)
 // =============================================
 const MEETING_WISHES = [
   // side: 투수(pit)·타자(bat) / need: 감독이 OK하려면 필요한 점수 / ok: 요청할 수 있는 상황
@@ -624,7 +624,7 @@ const MEETING_WISHES = [
     ok: (p) => p.lineup !== "pinch" && !p.starterPromise, hint: "벤치 선수용 · 경기 수 늘어요 (클러치가 중요)" },
   { id: "cleanup", short: "4번 타자", side: "bat", label: "4번 타자를 하고 싶어요", need: 4, extra: (p) => (p.stats.power - LEAGUES[p.league].level) / 3,
     ok: (p) => p.lineup !== "cleanup", hint: "파워가 중요해요 (타점 기회 +)" },
-  // 요청 말고 '말'만 하는 면담 (special: 결과를 직접 정해요)
+  // 요청 말고 '말'만 하는 면담 (special: 결과를 직접 정함)
   { id: "resolve", short: "각오 전하기", side: "any", label: "올 시즌 잘하겠습니다, 믿어 주세요", special: true,
     ok: () => true, hint: "부탁 없이 각오만 · 감독 신뢰 +1, 다음 시즌 컨디션 +" },
   { id: "captain", short: "주장", side: "any", label: "주장을 맡고 싶어요", need: 0, extra: (p) => (p.fame || 0) / 25 + (p.age >= 30 ? 1 : 0),
@@ -635,7 +635,7 @@ const MEETING_WISHES = [
     ok: (p) => p.league === "KBO", hint: "다른 팀에서 새 출발 · 원하는 팀이 있어야 해요 (팬 여론 -)" },
 ];
 
-// 특별 면담: 각오·체력 관리·트레이드는 감독 점수 대신 상황으로 정해요
+// 특별 면담: 각오·체력 관리·트레이드는 감독 점수 대신 상황으로 정함
 function specialMeeting(player, wish, who) {
   const lv = LEAGUES[player.league].level;
   const ovr = getOvrs(player).best;
@@ -741,7 +741,7 @@ function meetManager(player, wishId) {
     player.campWish = { id: wish.id, need: wish.need };
     news = `${player.name}, 감독에게 역할 변경 요청… 스프링캠프 경쟁으로 결정`;
   } else {
-    if (score < wish.need - 7) player.nextMod = (player.nextMod || 0) - 1; // 무리한 요구는 관계가 살짝 서먹해져요
+    if (score < wish.need - 7) player.nextMod = (player.nextMod || 0) - 1; // 무리한 요구는 관계가 살짝 서먹해짐
     news = `${player.name}, 감독 면담에서 요청 거절당해`;
   }
   return { wish, result, line, news, score };
@@ -760,7 +760,7 @@ function applyWish(player, id) {
 
 // 시즌 시작 때 캠프 경쟁 결과 (시즌 컨디션까지 포함해서 다시 판단)
 function resolveCampWish(player, report, mod) {
-  // 팀을 옮기면 예전 감독과의 약속은 없던 일이 돼요
+  // 팀을 옮기면 예전 감독과의 약속은 없던 일이 됨
   if (player.promiseTeam && player.promiseTeam !== player.team) {
     player.starterPromise = false;
     player.lineup = null;
@@ -785,14 +785,14 @@ function resolveCampWish(player, report, mod) {
   }
 }
 
-// 타순 효과: 1번 타자는 득점, 4번 타자는 타점이 많아요
+// 타순 효과: 1번 타자는 득점, 4번 타자는 타점이 많음
 function lineupEffect(player, bat) {
   if (!bat) return;
   if (player.lineup === "leadoff") { bat.R = Math.round(bat.R * 1.15); bat.RBI = Math.round(bat.RBI * 0.85); }
   if (player.lineup === "cleanup") { bat.RBI = Math.round(bat.RBI * 1.15); }
 }
 
-// 감독이 먼저 찾아와요: 필승조로 압도적이면 "내년엔 네가 뒷문 맡아라"
+// 감독이 먼저 찾아옴: 필승조로 압도적이면 "내년엔 네가 뒷문 맡아라"
 function maybeCloserOffer(player, report) {
   const p = report.pit;
   if (!p || !p.role || p.role !== "필승조" || player.role === "closer" || isAmateur(player.league)) return false;
@@ -819,7 +819,7 @@ function resolveCloserOffer(player, choice, option) {
   return [`${player.name}, 마무리 제안 고사… "지금 자리에서 팀을 돕겠다"`];
 }
 
-// 감독이 먼저 찾아와요: 벤치 타자에게 "대타로 쓸 테니 대타 훈련해라"
+// 감독이 먼저 찾아옴: 벤치 타자에게 "대타로 쓸 테니 대타 훈련해라"
 function maybeManagerTalk(player, report) {
   if (maybeCloserOffer(player, report)) return;
   if (player.retired || isAmateur(player.league) || isServing(player) || player.type !== "batter") return;
@@ -851,20 +851,20 @@ function resolveManagerTalk(player, choice, option) {
 }
 
 // =============================================
-// 감독 교체 (v14): 성적이 나쁘거나 계약이 끝나면 감독이 바뀌어요
-// 역대 감독(👑 레전드 포함)과 새 얼굴, 은퇴한 라이벌까지 후보가 돼요
+// 감독 교체 (v14): 성적이 나쁘거나 계약이 끝나면 감독이 바뀜
+// 역대 감독(👑 레전드 포함)과 새 얼굴, 은퇴한 라이벌까지 후보가 됨
 // =============================================
 function initManagers(player) {
   if (player.managers) return;
   player.managers = {};
   const now = gameYear(player);
   for (const [team, m] of Object.entries(MANAGERS)) {
-    // 예전 버전 저장 파일로 이어 하면 지금 해 기준으로 부임 연도를 맞춰요
+    // 예전 버전 저장 파일로 이어 하면 지금 해 기준으로 부임 연도를 맞춤
     const since = now > START_YEAR + 3 ? now - randomInt(0, 3) : MANAGER_SINCE[team] || START_YEAR;
     player.managers[team] = { ...m, note: "", since };
   }
-  player.managerPool = {};  // 한 번이라도 감독을 했던 사람 (다시 돌아올 수 있어요)
-  player.managerRest = {};  // 경질된 감독은 2년 쉬어요
+  player.managerPool = {};  // 한 번이라도 감독을 했던 사람 (다시 돌아올 수 있음)
+  player.managerRest = {};  // 경질된 감독은 2년 쉼
   player.myManagers = [];   // 내가 함께한 KBO 감독
 }
 
@@ -872,7 +872,7 @@ function managerCandidates(player, year) {
   const busy = new Set(Object.values(player.managers).map((m) => m.name));
   const rest = player.managerRest;
   const ok = (name) => !busy.has(name) && !(rest[name] > year);
-  const age = year - START_YEAR; // 게임이 흘러갈수록 옛 감독은 줄고 새 얼굴이 늘어요
+  const age = year - START_YEAR; // 게임이 흘러갈수록 옛 감독은 줄고 새 얼굴이 늘어남
   const list = [];
   const young = (m) => !m.born || year + 1 - m.born <= 68; // 다음 시즌 나이 기준
   for (const m of PAST_MANAGERS) {
@@ -944,7 +944,7 @@ function rotateManagers(player, report) {
       }
       reason = rank >= 8 ? "재계약 불발 (성적 부진)" : "계약 만료";
     } else if (rank >= 9 && Math.random() < 0.15) {
-      reason = "성적 부진으로 경질"; // 계약 기간 중 경질은 드물어요
+      reason = "성적 부진으로 경질"; // 계약 기간 중 경질은 드묾
     } else {
       continue;
     }

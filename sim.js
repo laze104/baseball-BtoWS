@@ -1,7 +1,7 @@
 // =============================================
 // sim.js : 경기 시뮬레이션
 // 타석(또는 상대 타자) 하나하나를 능력치 기반 확률로 굴려서
-// 시즌 기록을 만들어요.
+// 시즌 기록을 만듦
 // =============================================
 
 // 값을 min~max 사이로 고정
@@ -27,7 +27,7 @@ function fmtInnings(outs) {
 }
 
 // 능력치가 상대 수준(level)보다 얼마나 높은지 (-1 ~ +1 정도)
-// 리그 수준을 한참 넘으면(8 이상) 차이가 더 크게 벌어져요: 급이 다른 선수는 압도적으로
+// 리그 수준을 한참 넘으면(8 이상) 차이가 더 크게 벌어짐: 급이 다른 선수는 압도적으로
 function diff(stat, level) {
   const gap = stat - level;
   const extra = gap > 8 ? (gap - 8) * 0.7 : 0;
@@ -35,9 +35,9 @@ function diff(stat, level) {
 }
 
 // ---------------------------------------------
-// 리그별 경기 환경: 같은 실력이라도 리그마다 기록이 달라요
+// 리그별 경기 환경: 같은 실력이라도 리그마다 기록이 다름
 // hit: 안타, hr: 홈런, k: 삼진, bb: 볼넷 배율 / ops·era: 리그 평균 (WAR 기준선)
-// hold: 불펜이 홀드 상황에 나오는 비율 (NPB는 셋업맨 홀드가 많아요)
+// hold: 불펜이 홀드 상황에 나오는 비율 (NPB는 셋업맨 홀드가 많음)
 // ---------------------------------------------
 const LEAGUE_ENV = {
   HS:      { hit: 1.0,  hr: 0.55, k: 0.9,  bb: 1.25, ops: 0.72,  era: 4.0, hold: 0.45 , ph: 1.0 },
@@ -129,10 +129,10 @@ function simBattingSeason(stats, level, games, paPerGame, mod, position, env) {
 
   // 간단 WAR: 공격 기여 + 수비 기여 + 대체 선수 대비 보정
   const offense = ((r.OPS - env.ops - 0.015) * r.PA) / 4.5; // 리그 평균 OPS 기준
-  // 포지션 보정: 포수·유격수처럼 어려운 수비일수록 WAR를 더 받아요
+  // 포지션 보정: 포수·유격수처럼 어려운 수비일수록 WAR를 더 받음
   const POS_ADJ = { "포수": 8, "유격수": 6, "2루수": 3, "3루수": 2, "외야수": 0, "1루수": -6, "지명타자": -12 };
   let defense = ((stats.defense + stats.arm) / 2 + mod - L) * 0.25 * (r.PA / 600);
-  if (position === "지명타자") defense = 0; // 지명타자는 수비를 안 해요
+  if (position === "지명타자") defense = 0; // 지명타자는 수비를 안 함
   defense += (POS_ADJ[position] || 0) * (r.PA / 600);
   r.WAR = round((offense + defense + r.PA * 0.033) / 10, 1);
   return r;
@@ -146,7 +146,7 @@ function simPitchingSeason(stats, level, role, games, mod, env) {
   env = env || NEUTRAL_ENV;
   const s = (key) => stats[key] + mod;
   const L = level;
-  const relief = role === "starter" ? 0 : 1; // 불펜은 짧게 전력투구라 조금 더 강해요
+  const relief = role === "starter" ? 0 : 1; // 불펜은 짧게 전력투구라 조금 더 강함
   const ph = env.ph || 1.12; // 투수 쪽 피안타 보정 (리그 평균자책을 맞추는 값)
 
   const pK = clamp((0.18 + 0.22 * diff(s("velocity"), L) + 0.08 * diff(s("stuff"), L) + 0.06 * diff(s("breaking"), L)) * env.k * (1 + relief * 0.15), 0.06, 0.45);
@@ -231,7 +231,7 @@ function simPitchingSeason(stats, level, role, games, mod, env) {
       const share = clamp(outs / 27 + 0.1, 0.3, 1);
       for (let k = 0; k < teamRuns; k++) if (Math.random() < share) support++;
       if (outs >= 15 && support > runs) {
-        if (Math.random() < 0.85) r.W++; // 불펜이 가끔 승리를 날려요
+        if (Math.random() < 0.85) r.W++; // 불펜이 가끔 승리를 날림
       } else if (runs > support && teamRuns <= runs) {
         if (Math.random() < 0.9) r.L++;  // 끝까지 못 뒤집으면 패전
       }
@@ -259,7 +259,7 @@ function simPitchingSeason(stats, level, role, games, mod, env) {
   r.ER = Math.round(r.R * 0.92); // 자책점은 실점의 92% 정도로
   r.ERA = ip ? (r.ER * 9) / ip : 0;
   r.WHIP = ip ? (r.H + r.BB) / ip : 0;
-  const leverage = role === "starter" ? 1 : 1.6; // 불펜은 중요한 순간에 던져요
+  const leverage = role === "starter" ? 1 : 1.6; // 불펜은 중요한 순간에 던짐
   // 대체 선수 평균자책 = 리그 평균의 1.25배 정도
   r.WAR = round((((env.era * 1.25 - r.ERA) * ip) / 9 / 9) * leverage, 1);
   return r;
@@ -267,7 +267,7 @@ function simPitchingSeason(stats, level, role, games, mod, env) {
 
 // ---------------------------------------------
 // 같은 시즌을 두 번 돌려서 평균 내기
-// 운 요소가 절반 가까이 줄어서 능력치와 성적이 더 비례해요
+// 운 요소가 절반 가까이 줄어서 능력치와 성적이 더 비례함
 // ---------------------------------------------
 function averageSeasons(a, b, isBat) {
   const r = { ...a };

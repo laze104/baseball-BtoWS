@@ -2,7 +2,7 @@
 // feed.js : 기사 제목과 커뮤니티 댓글 만들기
 // =============================================
 
-// "{name}, {HR}홈런" 같은 템플릿의 {칸}을 실제 값으로 채워요
+// "{name}, {HR}홈런" 같은 템플릿의 {칸}을 실제 값으로 채움
 function fillText(template, player, extra) {
   const values = {
     name: player.name,
@@ -80,7 +80,7 @@ function buildFeed(player, report) {
     return;
   }
 
-  // 이도류는 더 잘한 쪽으로 기사를 써요
+  // 이도류는 더 잘한 쪽으로 기사를 씀
   let side = report.bat ? "bat" : "pit";
   if (report.bat && report.pit && report.pit.WAR > report.bat.WAR) side = "pit";
   const grade = report[side].G > 0 ? seasonGrade(report, side) : "bad";
@@ -134,7 +134,7 @@ function buildFeed(player, report) {
   report.comments = comments;
 }
 
-// 선택이나 쇼핑 뒤에 기사와 댓글을 덧붙여요
+// 선택이나 쇼핑 뒤에 기사와 댓글을 덧붙임
 function addReaction(player, report, newsLines, pool, extra) {
   if (!report) return;
   report.news.push(...newsLines);

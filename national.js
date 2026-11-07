@@ -69,7 +69,7 @@ function playNationalEvent(player, report) {
   } else {
     report.specials.push({ key: "nationalFail", event: ev.name });
   }
-  // 큰 무대 경험: 멘탈과 클러치가 조금 올라요
+  // 큰 무대 경험: 멘탈과 클러치가 조금 오름
   for (const key of ["mental", "clutch"]) {
     if (player.stats[key] !== undefined) player.stats[key] = clamp(player.stats[key] + 1, 1, 99);
   }

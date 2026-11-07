@@ -21,7 +21,7 @@ const AWARD_LINE = {
   MLB: { war: 8, hr: 42, avg: 0.325, rbi: 115, ops: 1.0, sb: 45, w: 17, k: 230, sv: 40, hld: 32, era: 2.6 },
 };
 
-// 예전 저장 데이터나 새 선수에 커리어 정보를 채워줘요
+// 예전 저장 데이터나 새 선수에 커리어 정보를 채워줌
 function initCareer(player) {
   if (!player.league) player.league = "HS";
   if (!player.team) player.team = player.school;
@@ -46,7 +46,7 @@ function initCareer(player) {
   return player;
 }
 
-// 선택지가 여러 개 생기면 줄 세워서 하나씩 보여줘요
+// 선택지가 여러 개 생기면 줄 세워서 하나씩 보여줌
 function pushChoice(player, choice) {
   if (!player.pendingChoice) player.pendingChoice = choice;
   else player.choiceQueue.push(choice);
@@ -77,14 +77,14 @@ function batterPlan(player, ovr) {
   const league = LEAGUES[player.league];
   const share = player.type === "twoway" ? 0.75 : 1;
   if (isAmateur(player.league)) {
-    // 야구 명문대는 주전 경쟁이 치열해서 1~2학년 때는 벤치일 수도 있어요
+    // 야구 명문대는 주전 경쟁이 치열해서 1~2학년 때는 벤치일 수도 있음
     if (collegeBench(player, ovr)) return { label: "백업", games: Math.round(18 * share), pa: 2.8 };
     return { label: "주전", games: Math.round(30 * share), pa: 4.3 };
   }
   let starterLine = player.league === "KBO" || TOP_LEAGUES.includes(player.league) ? league.level - 2 : league.level - 8;
-  if (player.starterPromise) starterLine -= 3; // 감독이 주전을 약속했어요 (면담)
+  if (player.starterPromise) starterLine -= 3; // 감독이 주전을 약속했음 (면담)
   if (ovr >= starterLine) {
-    // 1번 타자는 타석이 많고, 4번 타자는 주자 있을 때 타석이 많아요
+    // 1번 타자는 타석이 많고, 4번 타자는 주자 있을 때 타석이 많음
     if (player.lineup === "leadoff") return { label: "주전 · 1번 타자", games: Math.round(league.games * 0.95 * share), pa: 4.6 };
     if (player.lineup === "cleanup") return { label: "주전 · 4번 타자", games: Math.round(league.games * 0.95 * share), pa: 4.3 };
     return { label: "주전", games: Math.round(league.games * 0.93 * share), pa: 4.2 };
@@ -118,7 +118,7 @@ function pitcherPlan(player, ovr) {
 // 2. 시즌 진행 (핵심 함수)
 // ---------------------------------------------
 function runSeason(player, focusKeys) {
-  if (player.league === "SOCIAL") return serviceSeason(player, focusKeys); // 사회복무는 경기가 없어요
+  if (player.league === "SOCIAL") return serviceSeason(player, focusKeys); // 사회복무는 경기가 없음
   const league = LEAGUES[player.league];
   const report = {
     age: player.age, year: gameYear(player), league: player.league, team: player.team,
@@ -200,7 +200,7 @@ function runSeason(player, focusKeys) {
   teamStanding(player, report);
   statRanks(player, report);
   checkAwards(player, report);
-  rivalSeason(player, report); // 라이벌도 같은 해 시즌을 보내요
+  rivalSeason(player, report); // 라이벌도 같은 해 시즌을 보냄
 
   // (5) 성장
   report.gains = growPlayer(player, focusKeys, report);
@@ -236,12 +236,12 @@ function runSeason(player, focusKeys) {
 // ---------------------------------------------
 // 3. 팀 순위와 리그 기록 순위
 // ---------------------------------------------
-// teamStanding은 world.js에 있어요 (지구·리그별 순위)
+// teamStanding은 world.js에 있음 (지구·리그별 순위)
 
-// 값이 기준선과 얼마나 먼지로 리그 순위를 추정해요
+// 값이 기준선과 얼마나 먼지로 리그 순위를 추정함
 function estimateRank(value, line, step, lowerIsBetter) {
   const gap = lowerIsBetter ? value - line : line - value;
-  return Math.max(1, 1 + Math.round(gap / step)); // 성적만으로 정해요
+  return Math.max(1, 1 + Math.round(gap / step)); // 성적만으로 정함
 }
 
 function statRanks(player, report) {
@@ -307,7 +307,7 @@ function checkAwards(player, report) {
 }
 
 // ---------------------------------------------
-// 5. 성장 (집중 안 한 능력치는 떨어질 수도 있어요)
+// 5. 성장 (집중 안 한 능력치는 떨어질 수도 있음)
 // ---------------------------------------------
 function baseGrowth(age) {
   if (age <= 18) return 1.5;
@@ -332,12 +332,12 @@ function growPlayer(player, focusKeys, report) {
   for (const key of Object.keys(player.stats)) {
     let growth;
     if (focusKeys.includes(key)) {
-      // 나이가 들수록 훈련 효과가 줄어요
+      // 나이가 들수록 훈련 효과가 줄어듦
       const ageFactor = player.age >= 36 ? 0.25 : player.age >= 32 ? 0.5 : 1;
       growth = base * (0.5 + Math.random()) + bonus + (1.5 + Math.random() * 1.5 + focusBonus) * ageFactor;
     } else {
       growth = base * (0.5 + Math.random()) + bonus;
-      // 훈련을 안 하면 감이 떨어질 수 있어요 (고교 때는 덜)
+      // 훈련을 안 하면 감이 떨어질 수 있음 (고교 때는 덜)
       const decay = (player.age <= 18 ? 0.1 : 0.2) * (hasItem(player, "gym") ? 0.5 : 1); // 개인 훈련장이 있으면 절반
       if (Math.random() < decay) growth -= 1;
     }
@@ -355,7 +355,7 @@ function growPlayer(player, focusKeys, report) {
 // ---------------------------------------------
 function draftScore(player, report) {
   const school = HIGH_SCHOOLS.find((s) => s.name === player.school);
-  const schoolBonus = player.league === "HS" && school ? school.level * 2 : 0; // 강팀은 스카우트 노출이 많아요
+  const schoolBonus = player.league === "HS" && school ? school.level * 2 : 0; // 강팀은 스카우트 노출이 많음
   const twowayBonus = player.type === "twoway" ? 4 : 0;
   const collegeBonus = player.league === "COLLEGE" ? 3 : 0; // 대학에서 검증된 선수
   const warBonus = clamp((report.WAR || 0) * 1.5, 0, 6);   // 졸업반 성적
@@ -443,7 +443,7 @@ function moveCareer(player, report) {
   } else if (lg === "NPB" || lg === "MLB") {
     const c = player.contract;
     c.years--;
-    if (lg === "MLB") player.mlbService = (player.mlbService || 0) + 1; // 부상자 명단도 서비스타임에 들어가요
+    if (lg === "MLB") player.mlbService = (player.mlbService || 0) + 1; // 부상자 명단도 서비스타임에 들어감
     if (ovr < LEAGUES[lg].level - 10) {
       // 방출: 국내 복귀 제안
       report.specials.push({ key: "uturn" });
@@ -484,7 +484,7 @@ function resolveChoice(player, id) {
   }
 
   if (choice.key === "undrafted" && id === "COLLEGE") {
-    enterCollege(player); // 대학 고르기 선택지가 이어져요 (rules.js)
+    enterCollege(player); // 대학 고르기 선택지가 이어짐 (rules.js)
     news.push(`${player.name}, 대학 진학 결심… 대학에서 다시 프로를 노린다`);
   } else if (choice.key === "undrafted") {
     player.league = id;
@@ -589,7 +589,7 @@ function retirePlayer(player) {
     money: player.money, leagues: Object.keys(player.leagueSeasons), nickname: player.nickname || "",
   };
   entry.score = entry.MVP * 10 + entry.champs * 5 + entry.WAR;
-  // 랭킹에서 눌러 볼 수 있게 시즌별 기록도 같이 저장해요 (용량 아끼려고 필요한 것만)
+  // 랭킹에서 눌러 볼 수 있게 시즌별 기록도 같이 저장함 (용량 아끼려고 필요한 것만)
   entry.history = player.history.map((h) => ({ year: h.year, age: h.age, league: h.league, team: h.team, bat: h.bat, pit: h.pit, WAR: h.WAR }));
   entry.awards = { ...player.awards };
   entry.nicknames = player.nicknames || [];
@@ -599,7 +599,7 @@ function retirePlayer(player) {
   ranking.sort((a, b) => b.WAR - a.WAR); // 역대 랭킹은 통산 WAR 순
   const top = ranking.slice(0, 50);
   try { localStorage.setItem(RANKING_KEY, JSON.stringify(top)); } catch (e) {
-    // 저장 공간이 모자라면 11위 아래는 시즌별 기록을 빼고 저장해요
+    // 저장 공간이 모자라면 11위 아래는 시즌별 기록을 빼고 저장함
     top.forEach((r, i) => { if (i >= 10) { delete r.history; delete r.awards; } });
     try { localStorage.setItem(RANKING_KEY, JSON.stringify(top)); } catch (e2) {}
   }

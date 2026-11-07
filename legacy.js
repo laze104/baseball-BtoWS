@@ -1,10 +1,10 @@
 // =============================================
 // legacy.js : 선수마다 다른 성장유형, 업적 도감, 명예의 전당
-// 업적과 명예의 전당은 선수가 바뀌어도 브라우저에 계속 남아요
+// 업적과 명예의 전당은 선수가 바뀌어도 브라우저에 계속 남음
 // =============================================
 
 // ---------------------------------------------
-// 1. 성장유형 (선수를 만들 때 랜덤으로 정해져요)
+// 1. 성장유형 (선수를 만들 때 랜덤으로 정해짐)
 // up: 성장하는 나이에 곱하는 값, down: 노쇠하는 나이에 곱하는 값
 // ---------------------------------------------
 const GROWTH_TYPES = [
@@ -118,7 +118,7 @@ function loadAchievements() {
   try { return JSON.parse(localStorage.getItem(ACH_KEY)) || {}; } catch (e) { return {}; }
 }
 
-// 새로 달성한 업적 이름 목록을 돌려줘요
+// 새로 달성한 업적 이름 목록을 돌려줌
 function checkAchievements(player) {
   const got = loadAchievements();
   const fresh = [];
@@ -155,7 +155,7 @@ function hofScore(player) {
   if (t.H >= 3000) score += 15; else if (t.H >= 2500) score += 8;
   if (t.W >= 200) score += 15; else if (t.W >= 150) score += 8;
   if (t.SV >= 400) score += 12; else if (t.SV >= 300) score += 6;
-  score += (player.fame || 0) / 10; // 인성 논란은 표를 깎아요
+  score += (player.fame || 0) / 10; // 인성 논란은 표를 깎음
   return score;
 }
 
@@ -179,7 +179,7 @@ function runHofVote(player) {
     pct = clamp(pct, 0, 99.5);
     ballots.push({ year: firstYear + ballot - 1, pct: round(pct, 1) });
     if (pct >= 75 || pct < 5) break;
-    pct += randomInt(-3, 4); // 해가 갈수록 재평가 받기도 해요
+    pct += randomInt(-3, 4); // 해가 갈수록 재평가 받기도 함
   }
   const last = ballots[ballots.length - 1];
   const result = {
