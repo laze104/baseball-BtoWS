@@ -49,7 +49,8 @@ function playNationalEvent(player, report) {
   const ev = NATIONAL_EVENTS.find((e) => e.id === player.nationalPlan);
   const ovr = getOvrs(player).best;
   const level = ev.hsOnly ? 45 : LEAGUES.KBO.level;
-  const score = ovr - level + randomInt(-10, 10);
+  const nat = nationalStats(player, ev, report); // 대회 기록 (extra.js)
+  const score = ovr - level + randomInt(-10, 10) + nat.bonus;
   let result;
   if (score >= 14) result = "금메달";
   else if (score >= 9) result = "은메달";
@@ -59,6 +60,9 @@ function playNationalEvent(player, report) {
   player.awards["국가대표"] = (player.awards["국가대표"] || 0) + 1;
   report.events.push(`${ev.name} 출전`);
   report.national = { name: ev.name, result };
+  nat.rec.result = result;
+  player.nationalHistory = player.nationalHistory || [];
+  player.nationalHistory.push(nat.rec);
   if (result !== "예선 탈락") {
     const name = `${ev.name} ${result}`;
     player.awards[name] = (player.awards[name] || 0) + 1;

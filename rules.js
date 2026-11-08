@@ -21,7 +21,7 @@ const RULE_CHOICES = ["posting", "postingOffer", "draftSign", "collegePick"];
 Object.assign(NEWS.special, {
   scouts: "MLB·NPB 스카우트들, {name} 보러 줄줄이 방한",
   serviceShort: "{name}, 1군 등록일수 부족… FA 시계 1년 늦어진다",
-  renew: "{name}, FA 재자격까지 {left}시즌… {team}과 1년 재계약",
+  renew: "{name}, FA 재자격까지 {left}시즌… {team|과} 1년 재계약",
   arbitration: "{name}, 연봉조정 거쳐 1년 {salary} 계약 (서비스타임 {years}년)",
   preArb: "{name}, 서비스타임 {years}년… 구단과 1년 {salary} 재계약",
   nontender: "{team}, {name} 논텐더 결정… 자유계약 신분으로",
@@ -46,8 +46,10 @@ function countKboService(player, report) {
   if ((report.gameFactor || 1) >= FA_RULES.serviceShare) {
     player.kboService = (player.kboService || 0) + 1;
   } else {
-    report.events.push("등록일수 부족");
-    report.specials.push({ key: "serviceShort" });
+    const days = registeredDays(report);
+    report.events.push(`1군 등록 ${days}일 (부족)`);
+    // 부상 때문이면 크게 알려줌 (extra.js), 아니면 기사만
+    if (!serviceShortNotice(player, report, days)) report.specials.push({ key: "serviceShort" });
   }
 }
 
@@ -254,7 +256,7 @@ function hsDraft(player, report) {
     pushChoice(player, {
       key: "draftSign",
       round, team, bonus,
-      text: `${team}이 ${round}라운드에 지명했어요! 바로 프로에 갈까요, 지명을 거부하고 대학에 갈까요?`,
+      text: `${team}${josaOf(team, "이")} ${round}라운드에 지명했어요! 바로 프로에 갈까요, 지명을 거부하고 대학에 갈까요?`,
       options: [
         { id: "sign", label: `${team} 입단`, detail: `계약금 ${fmtMoney(bonus)} · FA까지 1군 ${FA_RULES.hsGrad}시즌` },
         { id: "college", label: "지명 거부하고 대학 진학", detail: `4년 뒤 대졸 드래프트 재도전 · 대졸은 FA까지 1군 ${FA_RULES.collegeGrad}시즌` },

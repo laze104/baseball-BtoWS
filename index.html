@@ -49,6 +49,7 @@
 
       <button type="submit">선수 생성</button>
     </form>
+    <p id="version">v0.15</p>
   </section>
 
   <!-- 화면 2: 선수 정보와 시즌 진행 (처음엔 숨김) -->
@@ -61,8 +62,10 @@
     <nav id="tabs">
       <button data-tab="train" class="active">훈련</button>
       <button data-tab="result">시즌 결과</button>
+      <button data-tab="news">뉴스</button>
       <button data-tab="board">반응</button>
       <button data-tab="record">통산 기록</button>
+      <button data-tab="rank">순위</button>
       <button data-tab="money">재산</button>
       <button data-tab="ach">업적</button>
     </nav>
@@ -78,8 +81,10 @@
       </div>
     </div>
     <div class="tab" id="tab-result" hidden></div>
+    <div class="tab" id="tab-news" hidden></div>
     <div class="tab" id="tab-board" hidden></div>
     <div class="tab" id="tab-record" hidden></div>
+    <div class="tab" id="tab-rank" hidden></div>
     <div class="tab" id="tab-money" hidden></div>
     <div class="tab" id="tab-ach" hidden></div>
 
@@ -119,6 +124,8 @@
   <script src="legacy.js"></script>
   <script src="world.js"></script>
   <script src="feed.js"></script>
+  <script src="news.js"></script>
+  <script src="extra.js"></script>
   <script src="main.js"></script>
 </body>
 </html>

@@ -125,6 +125,9 @@ function runSeason(player, focusKeys) {
     events: [], specials: [], awards: [], bat: null, pit: null,
   };
 
+  archiveNews(player); // 지난 시즌 기사 보관 (news.js)
+  maybeMidTrade(player, report); // 시즌 도중 강제 트레이드 (extra.js)
+
   // (1) 국가대표 대회 / 팀 집중
   let mod = 0;
   let extraInjury = 0;
@@ -146,6 +149,8 @@ function runSeason(player, focusKeys) {
     player.nextMod = 0;
   }
   mod += hiddenMod(player, report); // 숨은 특성·회춘 (world.js)
+  mod += seasonTraitMod(player); // 특정 계절에 강한 선수 (extra.js)
+  mod += historicMod(player, report, league.level); // 역사적 시즌, 극악 확률 (extra.js)
   resolveCampWish(player, report, mod); // 감독 면담 '캠프 경쟁' 결과 (world.js)
   if (player.positionAdjust) {
     mod -= 2;
@@ -161,11 +166,7 @@ function runSeason(player, focusKeys) {
   if (resting) injuryChance *= 0.5;
   if (hasItem(player, "recovery")) injuryChance *= 0.8; // 회복 장비
   const restFactor = resting ? 0.9 : 1;
-  if (Math.random() < injuryChance) {
-    gameFactor = 0.4 + Math.random() * 0.4;
-    report.events.push("부상");
-    report.specials.push({ key: "injury" });
-  }
+  gameFactor = rollInjury(player, report, injuryChance); // 부상 정도, 유리몸 (extra.js)
   if (player.type === "twoway" && Math.random() < 0.03) {
     mod += 12;
     report.events.push("이도류 각성");
@@ -195,11 +196,14 @@ function runSeason(player, focusKeys) {
   }
   report.WAR = round((report.bat ? report.bat.WAR : 0) + (report.pit ? report.pit.WAR : 0), 1);
   report.gameFactor = gameFactor; // 1군 등록일수 계산용
+  makeSplits(player, report); // 월별 성적 (extra.js)
+  historicMoment(player, report);
 
   // (4) 팀 순위, 리그 기록 순위, 수상
   teamStanding(player, report);
   statRanks(player, report);
   checkAwards(player, report);
+  postseasonStats(player, report, mod); // 포스트시즌 기록 (extra.js)
   rivalSeason(player, report); // 라이벌도 같은 해 시즌을 보냄
 
   // (5) 성장
@@ -214,8 +218,8 @@ function runSeason(player, focusKeys) {
   player.leagueSeasons[player.league] = (player.leagueSeasons[player.league] || 0) + 1;
   player.history.push({
     season: player.season, age: player.age, year: report.year, league: player.league, team: player.team,
-    bat: report.bat, pit: report.pit, WAR: report.WAR, awards: report.awards.slice(), events: report.events.slice(),
-    standing: report.standing && { rank: report.standing.rank, teams: report.standing.teams, w: report.standing.w, l: report.standing.l, group: report.standing.group, seed: report.standing.seed },
+    bat: report.bat, pit: report.pit, WAR: report.WAR, psBat: report.psBat, psPit: report.psPit, psWAR: report.psWAR, tradedFrom: report.tradedFrom, awards: report.awards.slice(), events: report.events.slice(),
+    standing: report.standing && { rank: report.standing.rank, teams: report.standing.teams, w: report.standing.w, l: report.standing.l, group: report.standing.group, seed: report.standing.seed, all: report.standing.all, altChamp: report.standing.altChamp },
   });
 
   // (8) 나이 먹고 다음 단계로
@@ -402,6 +406,7 @@ function moveCareer(player, report) {
     collegeDraft(player, report); // 대학 4학년 끝 → 대졸 드래프트
   } else if (lg === "INDIE" || lg === "ABL") {
     indieToPro(player, report); // 드래프트 또는 육성선수 계약 (rules.js)
+    indieScout(player, report);  // 나이 많아도 실력 되면 육성 계약 (extra.js)
   } else if (lg === "KBO2" || lg === "KBO") {
     player.proSeasons++;
     countKboService(player, report); // 1군 등록 145일 이상이면 FA 1시즌 (rules.js)
@@ -425,6 +430,7 @@ function moveCareer(player, report) {
       }
     }
     if (!faNow) maybePosting(player, report); // 1군 7시즌 + 구단 동의면 포스팅
+    if (!faNow) maybeAfterTrade(player, report); // 쓸모없으면 시즌 뒤 강제 트레이드 (extra.js)
     // 콜업과 강등
     const kboLevel = LEAGUES.KBO.level;
     if (lg === "KBO2" && (ovr >= kboLevel - 3 || (report.WAR >= 2.5 && ovr >= kboLevel - 8))) {
@@ -454,19 +460,10 @@ function moveCareer(player, report) {
     }
   }
 
-  // 은퇴할 수밖에 없는 상황
-  const isPro = PRO_LEAGUES.includes(player.league);
-  const mustRetire =
-    player.age >= 42 ||
-    (isPro && ovr < 45 && player.age >= 30) ||
-    ((player.league === "INDIE" || player.league === "ABL") && player.age >= 28);
-  if (mustRetire) {
+  // 은퇴할 수밖에 없는 상황: 성적 좋으면 나이 많아도 계속 뜀 (extra.js)
+  if (mustRetireNow(player, report, ovr)) {
     player.choiceQueue = [];
-    player.pendingChoice = {
-      key: "forcedRetire",
-      text: "더 이상 불러주는 팀이 없어요. 유니폼을 벗을 때가 됐어요.",
-      options: [{ id: "retire", label: "은퇴하기" }],
-    };
+    player.pendingChoice = forcedRetireChoice(player); // 현역 연장(입단 테스트) 선택지 있음
   }
 }
 
@@ -501,6 +498,12 @@ function resolveChoice(player, id) {
     } else {
       news.push(`${player.name}, "이도류 포기 안 한다" 정면 돌파 선언`);
     }
+  } else if (choice.key === "forcedRetire" && id === "extend") {
+    news.push(...resolveExtend(player)); // 입단 테스트 (extra.js)
+  } else if (choice.key === "fa" && (id === "wait" || id === "negotiate")) {
+    news.push(...resolveFaTable(player, choice, id)); // 협상 테이블 (extra.js)
+  } else if (choice.key === "faNego") {
+    news.push(...resolveFaNego(player, choice, option));
   } else if (choice.key === "fa" && id === "nofile") {
     player.contract = makeContract(player.league, player.team, 1, player.contract ? player.contract.salary : minSalary(player.league, player), 0);
     negotiateSalary(player);
@@ -509,13 +512,16 @@ function resolveChoice(player, id) {
     const o = option.offer;
     const stayed = o.team === player.team;
     const oldTeam = player.team;
+    const wasAbroad = ["MLB", "NPB", "MILB"].includes(player.league);
     signContract(player, o);
+    recordFaDeal(player, o); // FA로 번 돈 (extra.js)
     if (o.mega) player.megaSigned = true; // 업적용
     const values = { team: o.team, total: fmtMoney(o.total), years: o.years };
     if (stayed) news.push(fillText(NEWS.special.stay, player, values));
     else if (o.league === "KBO") news.push(fillText(NEWS.special.fa, player, values));
     else news.push(fillText(NEWS.special.overseas, player, values));
     news.push(`계약 조건: ${o.years}년 총액 ${fmtMoney(o.total)}${o.bonus ? ` (계약금 ${fmtMoney(o.bonus)})` : ""}`);
+    if (wasAbroad && o.league === "KBO" && player.age >= 31) news.push(fillText(NEWS.special.vetReturn, player, {}));
     const move = franchiseMoveNews(player, oldTeam);
     if (move) news.push(move.line);
   } else if (choice.key === "closerOffer") {
@@ -548,17 +554,18 @@ const RANKING_KEY = "baseball-ranking";
 // 통산 기록 (고교 제외)
 function careerTotals(player, leagueFilter) {
   const t = {
-    G: 0, PA: 0, AB: 0, H: 0, D: 0, T: 0, HR: 0, RBI: 0, R: 0, SB: 0, BB: 0, K: 0,
-    pG: 0, GS: 0, W: 0, L: 0, SV: 0, HLD: 0, outs: 0, pH: 0, pHR: 0, pBB: 0, pK: 0, pR: 0, ER: 0, WAR: 0,
+    G: 0, PA: 0, AB: 0, H: 0, D: 0, T: 0, HR: 0, RBI: 0, R: 0, SB: 0, BB: 0, K: 0, CH: 0, E: 0, SBA: 0, CS: 0,
+    pG: 0, GS: 0, W: 0, L: 0, SV: 0, HLD: 0, outs: 0, pH: 0, pHR: 0, pBB: 0, pK: 0, pR: 0, ER: 0, pCH: 0, pE: 0, WAR: 0,
   };
   for (const h of player.history) {
     if (isAmateur(h.league)) continue;
     if (leagueFilter && !leagueFilter.includes(h.league)) continue;
     t.WAR += h.WAR;
-    if (h.bat) for (const k of ["G", "PA", "AB", "H", "D", "T", "HR", "RBI", "R", "SB", "BB", "K"]) t[k] += h.bat[k] || 0;
+    if (h.bat) for (const k of ["G", "PA", "AB", "H", "D", "T", "HR", "RBI", "R", "SB", "BB", "K", "CH", "E", "SBA", "CS"]) t[k] += h.bat[k] || 0;
     if (h.pit) {
       t.pG += h.pit.G; t.GS += h.pit.GS || 0; t.W += h.pit.W; t.L += h.pit.L; t.SV += h.pit.SV; t.HLD += h.pit.HLD;
       t.outs += h.pit.outs; t.pH += h.pit.H; t.pHR += h.pit.HR; t.pBB += h.pit.BB; t.pK += h.pit.K; t.pR += h.pit.R; t.ER += h.pit.ER;
+      t.pCH += h.pit.CH || 0; t.pE += h.pit.E || 0;
     }
   }
   t.WAR = round(t.WAR, 1);
@@ -569,6 +576,9 @@ function careerTotals(player, leagueFilter) {
   t.OPS = t.OBP + t.SLG;
   t.ERA = t.outs ? (t.ER * 27) / t.outs : 0;
   t.WHIP = t.outs ? ((t.pH + t.pBB) * 3) / t.outs : 0;
+  t.BABIP = babip(t);
+  t.pBABIP = pitBabip({ outs: t.outs, K: t.pK, H: t.pH, HR: t.pHR });
+  t.FPCT = t.CH ? (t.CH - t.E) / t.CH : null;
   return t;
 }
 
@@ -590,7 +600,9 @@ function retirePlayer(player) {
   };
   entry.score = entry.MVP * 10 + entry.champs * 5 + entry.WAR;
   // 랭킹에서 눌러 볼 수 있게 시즌별 기록도 같이 저장함 (용량 아끼려고 필요한 것만)
-  entry.history = player.history.map((h) => ({ year: h.year, age: h.age, league: h.league, team: h.team, bat: h.bat, pit: h.pit, WAR: h.WAR }));
+  entry.history = player.history.map((h) => ({ year: h.year, age: h.age, league: h.league, team: h.team, bat: h.bat, pit: h.pit, WAR: h.WAR, psBat: h.psBat, psPit: h.psPit, psWAR: h.psWAR, tradedFrom: h.tradedFrom }));
+  entry.nationalHistory = player.nationalHistory || [];
+  entry.faEarned = player.faEarned || 0;
   entry.awards = { ...player.awards };
   entry.nicknames = player.nicknames || [];
   entry.hof = player.hof && player.hof.inducted;

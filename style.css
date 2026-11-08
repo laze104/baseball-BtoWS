@@ -325,3 +325,52 @@ form label.school-field input, form label.school-field select { flex: 1 1 100%; 
 #ranking .rank-row:hover td { background: rgba(255, 255, 255, 0.06); }
 .rank-detail { margin-top: 10px; padding: 10px; border: 1px solid #3a5a44; border-radius: 8px; }
 .rank-detail h4 small { color: #a9b8ad; font-weight: normal; }
+
+/* v15 */
+#version { color: #fff; font-size: 11px; text-align: center; opacity: 0.7; margin-top: 18px; }
+.stat-table tr.ps-row td { background: #3a2a14; color: #ffd28a; }
+.splits span { font-size: 12px; }
+.comments .replies { list-style: none; margin: 6px 0 0; padding: 0 0 0 14px; border-left: 2px solid #e4e4e4; }
+.comments .replies li { padding: 4px 0; border: none; font-size: 13px; }
+.comments .replies .c-head { font-size: 12px; }
+.c-head .op { color: #3b4890; font-weight: bold; margin-left: 4px; font-size: 11px; }
+.ps-stat { margin: 4px 0; }
+.league-pick button { width: auto; margin: 0 4px 4px 0; padding: 4px 10px; font-size: 13px; background: #2c3e30; color: #cfd8d1; }
+.league-pick button.on { background: #e8b931; color: #1b2a1f; }
+.rank-hist td { font-size: 12px; line-height: 1.3; }
+.rank-hist td.me, .stat-table tr.me-row td { background: #4a3d12; color: #ffe08a; }
+.stat-table tr.first td { color: #ffd700; }
+.rank-table th, .rank-table td { padding: 4px 6px; font-size: 12px; white-space: nowrap; }
+.stat-table.rank-table { min-width: 0; width: 100%; }
+
+/* 뉴스 탭 (포털 스포츠 기사 느낌) */
+.news-link, .post-link { cursor: pointer; }
+.news-link:hover, .post-link:hover { text-decoration: underline; color: #ffe08a; }
+.post-link { color: #2f55c9; font-size: 13px; }
+.news-portal { background: #fff; color: #222; border-radius: 8px; overflow: hidden; font-size: 14px; }
+.np-title { background: #03c75a; color: #fff; padding: 8px 12px; font-weight: bold; }
+.np-title small { font-weight: normal; opacity: 0.85; margin-left: 6px; }
+.np-sub { background: #f2f4f6; color: #555; padding: 6px 12px; font-size: 12px; font-weight: bold; }
+.article { border-bottom: 1px solid #eee; }
+.article summary { display: flex; gap: 10px; align-items: center; padding: 10px 12px; cursor: pointer; list-style: none; }
+.article summary::-webkit-details-marker { display: none; }
+.a-thumb { font-size: 26px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; background: #f2f4f6; border-radius: 6px; flex-shrink: 0; }
+.a-head { display: flex; flex-direction: column; gap: 3px; }
+.a-head b { font-size: 14px; line-height: 1.35; }
+.a-head small { color: #888; font-size: 11px; }
+.a-body { padding: 4px 14px 14px; line-height: 1.7; }
+.a-body h3 { font-size: 18px; line-height: 1.4; margin: 6px 0; color: #111; }
+.a-meta { color: #888; font-size: 12px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+.a-photo { font-size: 64px; text-align: center; background: #f2f4f6; border-radius: 6px; padding: 18px 0; margin: 10px 0; }
+.a-copy { color: #aaa; font-size: 11px; }
+.a-react { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.a-react span { border: 1px solid #ddd; border-radius: 14px; padding: 2px 8px; font-size: 12px; }
+.a-cmt { border-top: 2px solid #222; padding-top: 6px; font-size: 13px; }
+.a-cmt > div { padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
+.a-nick { font-weight: bold; margin-right: 6px; }
+.a-ud { display: block; color: #999; font-size: 11px; }
+/* 커뮤형 게시판 */
+.board.fm .board-title { background: #2b5ec7; }
+.board.fm .post { border-bottom-color: #2b5ec7; }
+.board-title small { font-weight: normal; opacity: 0.85; margin-left: 6px; font-size: 12px; }
+.lv { font-size: 10px; color: #fff; background: #7a8fd1; border-radius: 3px; padding: 0 4px; margin-left: 4px; }

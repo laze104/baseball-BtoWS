@@ -22,6 +22,7 @@ function initWorld(player) {
     };
   }
   if (!player.services) player.services = {};
+  initExtra(player); // 유리몸, 계절 특성, 국대 기록 (extra.js)
   if (player.league === "COLLEGE" && !player.collegeTier) {
     const c = COLLEGES.find((x) => x.name === player.college);
     player.collegeTier = c ? c.tier : 2;
@@ -131,6 +132,7 @@ function teamStanding(player, report) {
     player.awards[award] = (player.awards[award] || 0) + 1;
     report.awards.push(award);
   }
+  saveLeagueTable(player, report, all, seeds); // 역대 순위 탭용 (extra.js)
   addMonthlyStandings(report.standing, games, report); // 월별 순위 그래프용 (story.js)
 }
 

@@ -126,6 +126,7 @@ function simBattingSeason(stats, level, games, paPerGame, mod, position, env) {
   r.OBP = r.PA ? (r.H + r.BB + Math.round(r.PA * pHBP)) / r.PA : 0;
   r.SLG = r.AB ? TB / r.AB : 0;
   r.OPS = r.OBP + r.SLG;
+  r.BABIP = babip(r);
 
   // 간단 WAR: 공격 기여 + 수비 기여 + 대체 선수 대비 보정
   const offense = ((r.OPS - env.ops - 0.015) * r.PA) / 4.5; // 리그 평균 OPS 기준
@@ -259,6 +260,7 @@ function simPitchingSeason(stats, level, role, games, mod, env) {
   r.ER = Math.round(r.R * 0.92); // 자책점은 실점의 92% 정도로
   r.ERA = ip ? (r.ER * 9) / ip : 0;
   r.WHIP = ip ? (r.H + r.BB) / ip : 0;
+  r.BABIP = pitBabip(r);
   const leverage = role === "starter" ? 1 : 1.6; // 불펜은 중요한 순간에 던짐
   // 대체 선수 평균자책 = 리그 평균의 1.25배 정도
   r.WAR = round((((env.era * 1.25 - r.ERA) * ip) / 9 / 9) * leverage, 1);
@@ -283,19 +285,82 @@ function averageSeasons(a, b, isBat) {
     r.AVG = r.AB ? r.H / r.AB : 0;
     r.SLG = r.AB ? (r.H + r.D + 2 * r.T + 3 * r.HR) / r.AB : 0;
     r.OPS = r.OBP + r.SLG;
+    r.BABIP = babip(r);
   } else {
     r.GS = a.GS;
     r.ERA = r.outs ? (r.ER * 27) / r.outs : 0;
     r.WHIP = r.outs ? ((r.H + r.BB) * 3) / r.outs : 0;
+    r.BABIP = pitBabip(r);
   }
   r.WAR = round(r.WAR, 1);
   return r;
 }
 
 function steadyBattingSeason(...args) {
-  return averageSeasons(simBattingSeason(...args), simBattingSeason(...args), true);
+  const r = averageSeasons(simBattingSeason(...args), simBattingSeason(...args), true);
+  const [stats, level, , , mod, position] = args;
+  return Object.assign(r, fieldingSeason(stats, level, mod, position, r));
 }
 
 function steadyPitchingSeason(...args) {
-  return averageSeasons(simPitchingSeason(...args), simPitchingSeason(...args), false);
+  const r = averageSeasons(simPitchingSeason(...args), simPitchingSeason(...args), false);
+  const [stats, level, , , mod] = args;
+  return Object.assign(r, pitcherFielding(stats, level, mod, r));
+}
+
+// ---------------------------------------------
+// BABIP: 인플레이 타구가 안타 된 비율 (운 + 타구 질)
+// 타자 = (안타 - 홈런) / (타수 - 삼진 - 홈런)
+// 투수 = 피안타 기준 같은 식, 상대 타수는 아웃 + 피안타로 계산함
+// ---------------------------------------------
+function babip(r) {
+  const bip = r.AB - r.K - r.HR;
+  return bip > 0 ? (r.H - r.HR) / bip : 0;
+}
+function pitBabip(r) {
+  const bip = r.outs - r.K + r.H - r.HR;
+  return bip > 0 ? (r.H - r.HR) / bip : 0;
+}
+
+// ---------------------------------------------
+// 수비 기록: 수비 기회, 실책, 수비율 / 포수는 도루 저지
+// 포지션마다 공이 오는 횟수, 실책 나오는 비율이 다름 (3루·유격수가 실책 많음)
+// ---------------------------------------------
+const FIELD_POS = {
+  "포수":   { ch: 7.4, err: 0.008 },
+  "1루수":  { ch: 8.8, err: 0.006 },
+  "2루수":  { ch: 4.9, err: 0.02 },
+  "3루수":  { ch: 2.7, err: 0.036 },
+  "유격수": { ch: 4.4, err: 0.034 },
+  "외야수": { ch: 2.1, err: 0.012 },
+};
+
+function fieldingSeason(stats, level, mod, position, bat) {
+  const fp = FIELD_POS[position];
+  if (!fp || !bat.G) return {};
+  const def = (stats.defense || 50) + (mod || 0);
+  const arm = (stats.arm || 50) + (mod || 0);
+  const innings = clamp(bat.PA / (bat.G * 4.1), 0.35, 1); // 백업은 수비 이닝도 적음
+  const CH = Math.round(bat.G * fp.ch * innings * (0.92 + Math.random() * 0.16));
+  const errRate = fp.err * clamp(1 - diff(def, level) * 3, 0.3, 2.2);
+  const E = Math.max(0, Math.round(CH * errRate * (0.7 + Math.random() * 0.6)));
+  const out = { CH, E, FPCT: CH ? (CH - E) / CH : 1 };
+  if (position === "포수") {
+    // 도루 시도는 경기당 0.7개 정도, 어깨가 강하면 아예 덜 뜀
+    const SBA = Math.round(bat.G * innings * clamp(0.75 - diff(arm, level) * 0.8, 0.35, 1));
+    const csp = clamp(0.25 + (arm - level) * 0.006 + (def - level) * 0.002 + (Math.random() - 0.5) * 0.05, 0.08, 0.55);
+    out.SBA = SBA;
+    out.CS = Math.round(SBA * csp);
+  }
+  return out;
+}
+
+// 투수 수비: 이닝당 0.35번 정도 공이 옴 (땅볼 처리, 1루 커버, 견제), 수비 능력치 낮으면 실책 많음
+function pitcherFielding(stats, level, mod, pit) {
+  if (!pit.outs) return {};
+  const fld = (stats.fielding || 50) + (mod || 0);
+  const CH = Math.round((pit.outs / 3) * 0.35 * (0.85 + Math.random() * 0.3));
+  const errRate = 0.035 * clamp(1 - diff(fld, level) * 3, 0.3, 2.2);
+  const E = Math.max(0, Math.round(CH * errRate * (0.6 + Math.random() * 0.8)));
+  return { CH, E, FPCT: CH ? (CH - E) / CH : 1 };
 }

@@ -21,7 +21,7 @@ Object.assign(NEWS.special, {
   abroadDefer: "{name}, 국외 체류 연장으로 입대 연기… 국내 복귀 전까지 병역 미뤄",
   service: "{name}, 사회복무요원으로 성실히 근무 중… 퇴근 후 개인 훈련",
   nickname: "팬들이 붙여준 별명 '{nick}'… {name}의 반응은?",
-  rivalWin: "동갑내기 라이벌 대결, 올해는 {name}의 판정승… {rival}은 {rivalLine}",
+  rivalWin: "동갑내기 라이벌 대결, 올해는 {name}의 판정승… {rival|은} {rivalLine}",
   rivalLose: "라이벌 {rival}, {rivalLine}… {name} 자존심 상했다",
   rivalMove: "{name}의 라이벌 {rival}, {rivalTeam} 행 확정",
   rivalRetire: "{name}의 평생 라이벌 {rival}, 은퇴 선언",
@@ -630,7 +630,7 @@ LIFE_EVENTS.push(
     id: "rivalQ", interview: true, when: (p) => p.rival && !p.rival.retired && !isAmateur(p.league),
     text: "기자가 동갑내기 라이벌 {rival}에 대해 물어요.",
     options: [
-      { id: "a", label: "\"정말 존경하는 선수예요\"", fame: 5, news: "{name} \"{rival}은 존경하는 친구\"… 훈훈한 라이벌", mood: "good" },
+      { id: "a", label: "\"정말 존경하는 선수예요\"", fame: 5, news: "{name} \"{rival|은} 존경하는 친구\"… 훈훈한 라이벌", mood: "good" },
       { id: "b", label: "\"솔직히 제가 한 수 위죠\"", fame: "random", nextMod: 1, news: "{name}, 라이벌 {rival} 공개 도발 \"내가 한 수 위\"", mood: "bad" },
       { id: "c", label: "\"남 신경 쓸 시간 없어요\"", fame: 0, news: "{name} \"라이벌? 신경 안 쓴다\"", mood: "good" },
     ],
@@ -676,7 +676,7 @@ LIFE_EVENTS.push(
 // =============================================
 Object.assign(NEWS.special, {
   postingFail: "{name}, {league} 포스팅 무응찰… {team} 잔류",
-  postingWin: "{name}, 포스팅 성공! {team}과 {years}년 총액 {total} 계약",
+  postingWin: "{name}, 포스팅 성공! {team|과} {years}년 총액 {total} 계약",
   scouts: "MLB·NPB 스카우트들, {name} 보러 줄줄이 방한",
 });
 Object.assign(FAN, {
@@ -1021,9 +1021,12 @@ function addMonthlyStandings(standing, games, report) {
   if (rec && rec.G) {
     const isBat = !!report.bat;
     const base = isBat ? rec.AVG : rec.ERA;
-    const f = MONTHS.map(() => 0.7 + Math.random() * 0.6);
+    // 계절 특성 있으면 그 시기에 몰아서 잘함 (extra.js makeSplits)
+    const sp = report.splits && report.splits.f.length === n ? report.splits.f : null;
+    const f = sp || MONTHS.map(() => 0.7 + Math.random() * 0.6);
     const mean = f.reduce((s, x) => s + x, 0) / n;
-    standing.myMonthly = { label: isBat ? "월별 타율" : "월별 평균자책", isBat, values: f.map((x) => (base * x) / mean) };
+    const value = (x) => (sp && !isBat ? base / x : (base * x) / mean);
+    standing.myMonthly = { label: isBat ? "월별 타율" : "월별 평균자책", isBat, values: f.map(value) };
   }
 }
 

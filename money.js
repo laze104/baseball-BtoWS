@@ -218,27 +218,16 @@ function overseasBuzz(player) {
   return { reasons, strong: reasons.length >= 2 || last.WAR >= 6, npb: last.league === "NPB" };
 }
 
-// FA 선택지 만들기
+// FA 선택지 만들기: 팀 사정 반영 + 협상 테이블 (extra.js)
 function faChoice(player, reason) {
-  const offers = generateOffers(player);
-  const options = offers.map((o, i) => ({
-    id: `offer${i}`,
-    label: `${o.team} (${LEAGUES[o.league].name})`,
-    detail: `${o.mega ? "💰 메가 계약 · " : ""}${o.veteran ? (o.years === 2 ? "1+1년 (베테랑 단기 계약) · " : "1년 단기 계약 · ") : ""}${o.years}년 총액 ${fmtMoney(o.total)}${o.bonus ? ` · 계약금 ${fmtMoney(o.bonus)}` : ""} · 연봉 ${fmtMoney(o.salary)}`,
-    offer: o,
-  }));
-  // KBO FA는 신청하지 않고 1년 더 뛸 수도 있음 (자격은 그대로 남음)
-  if (player.league === "KBO" || player.league === "KBO2") {
-    options.push({ id: "nofile", label: "FA 신청 안 하고 잔류", detail: "원소속팀과 1년 연봉 계약 · FA 자격은 유지돼요" });
-  }
-  if (player.age >= 33) options.push({ id: "retire", label: "여기서 은퇴한다" });
+  const offers = applyNeeds(player, generateOffers(player));
   // 베테랑인데 해외 오퍼가 왔으면 크게 알려줌
   const buzz = overseasBuzz(player);
   if (buzz && offers.some((o) => o.veteran)) {
     const lgs = [...new Set(offers.filter((o) => o.veteran).map((o) => LEAGUES[o.league].name))].join("·");
     reason = `🌏 ${koreanAge(player.age)}세지만 ${buzz.reasons.join(", ")} 성적을 보고 ${lgs} 구단이 연락해 왔어요! ` + reason;
   }
-  return { key: "fa", text: reason, options };
+  return buildFaChoice(player, reason, offers, { waits: 0, negos: 0 });
 }
 
 // 계약 확정

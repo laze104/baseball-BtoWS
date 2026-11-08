@@ -9,9 +9,24 @@ function fillText(template, player, extra) {
     team: player.team,
     school: player.school,
     league: LEAGUES[player.league] ? LEAGUES[player.league].name : "",
+    tt: typeof teamTilde === "function" ? teamTilde((extra && extra.team) || player.team) : "", // 삼~성 식 (news.js)
     ...extra,
   };
-  return template.replace(/\{(\w+)\}/g, (match, key) => (values[key] !== undefined ? values[key] : match));
+  // {rival|은} 처럼 쓰면 받침 보고 은/는 붙여줌
+  return template.replace(/\{(\w+)(?:\|([^}]+))?\}/g, (match, key, j) => {
+    if (values[key] === undefined) return match;
+    return j ? values[key] + josaOf(values[key], j) : values[key];
+  });
+}
+
+const JOSA_PAIRS = { 은: ["은", "는"], 는: ["은", "는"], 이: ["이", "가"], 가: ["이", "가"], 을: ["을", "를"], 를: ["을", "를"], 과: ["과", "와"], 와: ["과", "와"], 이랑: ["이랑", "랑"], 으로: ["으로", "로"] };
+function josaOf(word, j) {
+  const pair = JOSA_PAIRS[j];
+  if (!pair) return j;
+  const c = String(word).charCodeAt(String(word).length - 1);
+  const batchim = c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 !== 0;
+  if (j === "으로" && batchim && (c - 0xac00) % 28 === 8) return "로"; // ㄹ받침은 '로'
+  return batchim ? pair[0] : pair[1];
 }
 
 // 이번 시즌이 잘한 시즌인지: great / good / bad
@@ -35,6 +50,7 @@ function recordValues(report) {
   if (report.pit) {
     v.ERA = report.pit.ERA.toFixed(2); v.K = report.pit.K; v.W = report.pit.W;
   }
+  v.WAR = report.WAR;
   return v;
 }
 
@@ -77,6 +93,8 @@ function buildFeed(player, report) {
     if (report.rival) texts.push(...pickMany(FAN.rival, 1));
     report.news = news.length ? news : [fillText(NEWS.special.service, player, {})];
     report.comments = texts.map((t) => makeComment(t, player, { rival: report.rival ? report.rival.name : "" }, "normal"));
+    makePost(player, report, "none"); // 커뮤 글 제목 (news.js)
+    applySkin(report);
     return;
   }
 
@@ -89,6 +107,7 @@ function buildFeed(player, report) {
   // 기사: 시즌 총평 1개 + 특별 기사들
   const pool = side === "bat" ? NEWS.batter : NEWS.pitcher;
   news.push(fillText(pick(pool[grade]), player, values));
+  report.summaryTitle = news[0]; // 뉴스 탭에서 시즌 총평 기사로 씀
   for (const sp of report.specials) {
     const template = NEWS.special[sp.key];
     if (template) news.push(fillText(template, player, { ...values, ...sp, team: sp.team || player.team }));
@@ -119,19 +138,38 @@ function buildFeed(player, report) {
   if (keys.includes("mlbCallup")) add(FAN.mlbCall, 3);
   if (keys.includes("mlbScout")) add(FAN.mlbDirect, 2);
   if (report.awards.includes("올스타")) add(FAN.allstar, 1);
+  // v15: 진짜 커뮤처럼 숫자 언급, 짧은 드립, 키배, 팀 얘기
+  if (TOP_LEAGUES.includes(report.league)) {
+    if (grade === "bad") add(side === "bat" ? FAN.statBatBad : FAN.statPitBad, 1);
+    else add(side === "bat" ? FAN.statBat : FAN.statPit, 1);
+    add(FAN.teamTalk, Math.random() < 0.5 ? 1 : 0);
+    if (grade !== "bad" && Math.random() < 0.5) add(FAN.fight, 1);
+  }
+  add(FAN.meme, randomInt(1, 2));
+  if (keys.includes("tradeMid") || keys.includes("tradeAfter")) add(FAN.trade, 3);
+  if (keys.includes("historic")) add(FAN.historic, 4);
+  if (keys.includes("autumnHot")) add(FAN.autumn, 2);
+  if (keys.includes("seasonHot") && Math.random() < 0.6) add(FAN.season, 1);
+  if (keys.includes("glassHurt") || (report.injury && report.injury.glass)) add(FAN.glass, 2);
+  if (keys.includes("serviceInjury")) texts.push("FA 1년 밀렸네 ㅠㅠ 몸이 재산이다");
   if ((player.fame || 0) >= 40) add(FAN.fameHigh, 2);
   if ((player.fame || 0) <= -30) add(FAN.fameLow, 2);
 
   const draftInfo = report.specials.find((s) => s.round);
   const extra = {
+    ...values,
     round: draftInfo ? draftInfo.round : "", team: report.team,
     nick: player.nickname || "", rival: report.rival ? report.rival.name : "",
   };
   const comments = texts.map((t) => makeComment(t, player, extra, grade === "bad" ? "hot" : "normal"));
   comments.sort(() => Math.random() - 0.5);
+  addReplies(comments, player, extra);
 
   report.news = news;
   report.comments = comments;
+  maybeAggro(player, report); // 어그로 기사 (news.js)
+  makePost(player, report, grade); // 커뮤 글 제목·본문
+  applySkin(report); // 갤러리형 / 커뮤형 게시판
 }
 
 // 선택이나 쇼핑 뒤에 기사와 댓글을 덧붙임
@@ -140,4 +178,17 @@ function addReaction(player, report, newsLines, pool, extra) {
   report.news.push(...newsLines);
   if (!report.comments) report.comments = [];
   for (const t of pickMany(pool, 3)) report.comments.unshift(makeComment(t, player, extra || {}, "normal"));
+  applySkin(report);
+}
+
+// 대댓글: 댓글 몇 개에 'ㄴ' 답글이 달림, 가끔 글쓴이도 등판
+function addReplies(comments, player, extra) {
+  for (const c of comments) {
+    if (Math.random() >= 0.3) continue;
+    c.replies = pickMany(FAN.reply, randomInt(1, 2)).map((t) => {
+      const r = makeComment(t, player, extra, "normal");
+      return { nick: r.nick, ip: r.ip, text: r.text, time: r.time };
+    });
+    if (Math.random() < 0.12) c.replies.push({ nick: "ㅇㅇ", ip: `${randomInt(1, 223)}.${randomInt(1, 255)}`, text: pick(["ㄴ 내 말이 그 말", "ㄴ 글쓴이인데 이거 인정", "ㄴ 아니 내 글에서 싸우지 마라"]), time: c.time, op: true });
+  }
 }
