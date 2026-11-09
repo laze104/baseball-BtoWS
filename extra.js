@@ -383,11 +383,12 @@ function offerLabel(player, o) {
 
 function offerDetail(player, o) {
   const back = o.league === "KBO" && ["MLB", "NPB", "MILB"].includes(player.league) && player.age >= 31;
-  return `${o.need ? `🔥 ${o.need} 급구 · ` : ""}${back ? "KBO 복귀 · " : ""}${o.mega ? "💰 메가 계약 · " : ""}${o.veteran ? (o.years === 2 ? "1+1년 (베테랑 단기 계약) · " : "1년 단기 계약 · ") : ""}${o.years}년 총액 ${fmtMoney(o.total)}${o.bonus ? ` · 계약금 ${fmtMoney(o.bonus)}` : ""} · 연봉 ${fmtMoney(o.salary)}${o.change ? ` · ${o.change}` : ""}`;
+  return `${o.agentFound ? "🕴️ 에이전트가 물어온 제안 · " : ""}${o.need ? `🔥 ${o.need} 급구 · ` : ""}${back ? "KBO 복귀 · " : ""}${o.mega ? "💰 메가 계약 · " : ""}${o.veteran ? (o.years === 2 ? "1+1년 (베테랑 단기 계약) · " : "1년 단기 계약 · ") : ""}${o.years}년 총액 ${fmtMoney(o.total)}${o.bonus ? ` · 계약금 ${fmtMoney(o.bonus)}` : ""} · 연봉 ${fmtMoney(o.salary)}${o.change ? ` · ${o.change}` : ""}`;
 }
 
 // 협상 가능한 팀: 원소속팀, 내 자리가 급한 팀
 function negotiable(player, o) {
+  if (agentNegotiable(player, o)) return true; // 에이전트 있으면 모든 구단과 협상 (agent.js)
   return !o.negotiated && !o.mega && (o.team === player.team || !!o.need);
 }
 
@@ -395,7 +396,7 @@ function negotiable(player, o) {
 function faTableOptions(player, offers, table) {
   const opts = [];
   if (table.waits < 2) opts.push({ id: "wait", label: "⏳ 시장 더 지켜보기", detail: `제안이 오를 수도, 다른 FA를 잡고 빠질 수도 있어요 · 남은 기회 ${2 - table.waits}번` });
-  if (offers.some((o) => negotiable(player, o))) opts.push({ id: "negotiate", label: "🤝 협상 테이블", detail: "원소속팀이나 나를 꼭 원하는 팀과 직접 조건 담판" });
+  if (offers.some((o) => negotiable(player, o))) opts.push({ id: "negotiate", label: "🤝 협상 테이블", detail: player.agent ? `${player.agent.name}가 모든 구단과 조건 담판` : "원소속팀이나 나를 꼭 원하는 팀과 직접 조건 담판" });
   return opts;
 }
 
@@ -407,7 +408,7 @@ function waitMarket(player, offers) {
   const next = [];
   for (const o of offers) {
     const r = Math.random();
-    if (!o.need && o.team !== player.team && r < 0.22) {
+    if (!o.need && o.team !== player.team && r < agentWithdraw(player)) { // 에이전트 있으면 덜 빠짐
       lines.push(`${o.team}, 다른 FA와 계약하며 철수`);
       continue;
     }
@@ -449,6 +450,7 @@ function coldOffer(player, offers) {
 function negoChance(player, o) {
   let c = 0.4 + (o.need ? 0.2 : 0) + (o.team === player.team && isFranchiseHere(player) ? 0.15 : 0);
   c += (player.fame || 0) / 250 + (recentWar(player) - 2.5) * 0.04;
+  c += agentNegoBonus(player); // 에이전트 협상력
   return clamp(c, 0.15, 0.85);
 }
 

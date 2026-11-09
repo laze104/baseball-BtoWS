@@ -374,3 +374,51 @@ form label.school-field input, form label.school-field select { flex: 1 1 100%; 
 .board.fm .post { border-bottom-color: #2b5ec7; }
 .board-title small { font-weight: normal; opacity: 0.85; margin-left: 6px; font-size: 12px; }
 .lv { font-size: 10px; color: #fff; background: #7a8fd1; border-radius: 3px; padding: 0 4px; margin-left: 4px; }
+
+/* ---------- 10. v16: 텍스트 중계, 트래킹, 연감, 숙적, 기자회견 ---------- */
+@keyframes pbp-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.pbp { text-align: left; background: rgba(0, 0, 0, 0.25); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; max-height: 46vh; overflow-y: auto; }
+.pbp p { font-size: 14px; margin: 5px 0; opacity: 0; animation: pbp-in 0.35s ease-out forwards; }
+.pbp p:first-child { color: #e8b931; font-weight: bold; }
+#big-modal .late { opacity: 0; animation: pbp-in 0.4s ease-out forwards; }
+#big-modal.skip .pbp p, #big-modal.skip .late { animation-delay: 0s !important; animation-duration: 0.01s; }
+.pbar { display: inline-block; width: var(--w); max-width: 60px; height: 8px; background: #e8b931; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+.spray { max-width: 300px; margin: 6px auto 10px; }
+.spray svg { width: 100%; height: auto; display: block; }
+.leaders { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.leader { background: #1b2a1f; border-radius: 8px; padding: 8px; font-size: 13px; }
+.leader > b { color: #e8b931; }
+.leader ol { margin: 4px 0 0; padding-left: 18px; }
+.leader li { display: flex; justify-content: space-between; gap: 4px; padding: 1px 0; }
+.leader li span small { color: #a9b8ad; margin-left: 4px; font-size: 11px; }
+.leader li.mine { color: #e8b931; font-weight: bold; }
+.leader li em { font-style: normal; }
+.me-rank { margin: 4px 0 0; font-size: 12px; color: #e8b931; }
+#almanac-year { width: auto; display: inline-block; padding: 2px 6px; font-size: 13px; margin-left: 6px; }
+.miles, .velo-bars { list-style: none; padding: 0; margin: 0 0 10px; display: grid; gap: 6px; }
+.miles li { display: grid; grid-template-columns: 90px 1fr; gap: 2px 8px; align-items: center; font-size: 13px; }
+.miles li small { grid-column: 2; color: #a9b8ad; font-size: 11px; }
+.velo-bars li { display: grid; grid-template-columns: 44px 1fr 56px; gap: 6px; align-items: center; font-size: 13px; }
+table.highs td:nth-child(2) { color: #e8b931; }
+details.hl { background: #1b2a1f; border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; font-size: 13px; }
+details.hl summary { cursor: pointer; }
+details.hl.ok summary b { color: #7fd38f; }
+details.hl.fail summary b { color: #ff8a80; }
+details.hl p { margin: 4px 0; }
+.nem-cards { display: grid; gap: 8px; }
+.nem-card { background: #1b2a1f; border-left: 4px solid #5a6b5f; border-radius: 8px; padding: 8px 12px; }
+.nem-card.stage1 { border-left-color: #a9b8ad; }
+.nem-card.stage2 { border-left-color: #c0504d; }
+.nem-card.stage3 { border-left-color: #e8b931; }
+.nem-card p { margin: 3px 0; }
+.nem-head { display: flex; justify-content: space-between; align-items: center; }
+.nem-stage { font-size: 12px; background: #2f4535; padding: 2px 8px; border-radius: 10px; }
+.stage2 .nem-stage { background: #6b2a28; }
+.stage3 .nem-stage { background: #6b5514; }
+.nem-line { font-size: 13px; }
+.nem-memory { font-size: 13px; color: #ffd36b; font-style: italic; }
+.nem-rows { list-style: none; padding: 0; margin: 0 0 10px; font-size: 13px; }
+.nem-rows li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid #2f4535; }
+.nem-rows small { color: #a9b8ad; }
+.small-btn { width: auto; display: inline-block; padding: 2px 8px; font-size: 12px; margin-left: 6px; }
+#big-modal.playing .big-card { border-color: #a9b8ad; box-shadow: 0 0 40px rgba(169, 184, 173, 0.25); }

@@ -199,6 +199,8 @@ function showPlayer(player) {
   showNews(player); // 뉴스 탭 (news.js)
   showRecord(player);
   showStandings(player); // 역대 순위 (extra.js)
+  showAlmanac(player); // 연감 (almanac.js)
+  showNemesis(player); // 숙적 카드 (nemesis.js)
   showMoney(player);
   showAchievements($("tab-ach"));
 
@@ -296,7 +298,8 @@ $("position-panel").addEventListener("click", (event) => {
 
 // 선택지별 팬 반응 댓글 묶음
 function reactionPool(key, option, player) {
-  if (key === "fa") return FAN.contract;
+  if (key === "fa" || key === "agent") return FAN.contract;
+  if (key === "press") return pressPool(player.lastPressTone); // 기자회견 답변 말투별 (press.js)
   if (key === "clutch") return player.lastClutch ? FAN.clutchGood : FAN.clutchBad;
   if (key === "draftSign") return option.id === "college" ? FAN.college : FAN.draft;
   if (key === "undrafted" && option.id === "COLLEGE") return FAN.college;
@@ -384,6 +387,8 @@ function showSeasonResult(report) {
   if (report.standing && report.standing.monthly) html += monthlyChartHtml(report);
   if (report.bat) html += `<h4>타격 <small>${report.bat.role}</small></h4>` + batRecordHtml(report.bat);
   if (report.pit) html += `<h4>투구 <small>${report.pit.role}</small></h4>` + pitRecordHtml(report.pit);
+  html += trackingHtml(report); // 트래킹 데이터 (broadcast.js)
+  html += nemesisResultHtml(report); // 숙적 맞대결 (nemesis.js)
   if (report.ranks) {
     html += `<h4>리그 순위</h4><p class="chips">${report.ranks
       .map((r) => `<span class="${r.rank <= 3 ? "top" : ""}">${r.label} ${r.rank > 30 ? "30위 밖" : r.rank + "위"}</span>`)
@@ -623,6 +628,7 @@ function showMoney(player) {
     html += "<p>아직 아마추어라 수입이 없어요.</p>";
   }
   html += serviceHtml(player);
+  html += agentHtml(player); // 에이전트 (agent.js)
   html += `<p class="small">연봉의 65%가 저축돼요 (세금·생활비 제외). 가격은 ${gameYear(player)}년 물가 기준이에요.</p>`;
 
   html += shopHtml(player);
@@ -630,6 +636,16 @@ function showMoney(player) {
 }
 
 $("tab-money").addEventListener("click", (event) => {
+  if (event.target.dataset.fireAgent) {
+    if (!confirm(`${currentPlayer.agent.name}와 에이전트 계약을 끝낼까요? 지금 계약 수수료는 계약이 끝날 때까지 계속 나가요.`)) return;
+    const line = `${currentPlayer.name}, ${currentPlayer.agent.name}와 결별`;
+    currentPlayer.agent = null;
+    addReaction(currentPlayer, currentPlayer.lastReport, [line], FAN.contract, {});
+    savePlayer(currentPlayer);
+    showPlayer(currentPlayer);
+    setTab("money");
+    return;
+  }
   const hire = event.target.dataset.hire;
   if (hire) {
     const years = Number(event.target.dataset.years);
@@ -708,7 +724,7 @@ function showRetired(player) {
   const awardList = Object.entries(player.awards).map(([k, v]) => `${k} ${v}회`).join(", ") || "없음";
   let html = `<h2>${player.name} 은퇴</h2>
     <p>${player.school} 출신 · ${gameYear(player)}년 ${koreanAge(player.age)}세 은퇴 · 최고 OVR ${player.bestOvr}</p>
-    <p>통산 WAR <b>${t.WAR}</b> · 모은 재산 <b>${fmtMoney(player.money)}</b> · FA로 번 돈 <b>${player.faDeals ? `${fmtMoney(player.faEarned)} (${player.faDeals}번 계약)` : "없음"}</b></p>
+    <p>통산 WAR <b>${t.WAR}</b> · 모은 재산 <b>${fmtMoney(player.money)}</b> · FA로 번 돈 <b>${player.faDeals ? `${fmtMoney(player.faEarned)} (${player.faDeals}번 계약)` : "없음"}</b>${player.agentFees ? ` · 에이전트 수수료 ${fmtMoney(player.agentFees)}` : ""}</p>
     ${player.nickname ? `<p>별명: '${player.nickname}' · 팬 여론 ${fameLabel(player.fame || 0)}</p>` : ""}
     ${player.retireNews ? `<p>📰 ${player.retireNews}</p>` : ""}
     ${player.myManagers && player.myManagers.length ? `<p>함께한 감독: ${player.myManagers.join(", ")}</p>` : ""}`;
@@ -882,13 +898,26 @@ function choiceBigMoments(player, choice, option, news, awardsBefore) {
     const ok = player.lastClutch;
     const r = player.lastReport;
     const newAwards = r ? r.awards.slice(awardsBefore) : [];
+    // 텍스트 중계: 상대가 숙적이면 그 선수로 (broadcast.js, nemesis.js)
+    const nem = clutchNemesis(player, choice.side);
+    const pbp = buildPbp(player, choice, option.id, ok, nem);
+    news.push(...clutchNemesisResult(player, nem, ok, choice));
+    const title = ok ? "⚡ 성공!" : "💥 실패…";
+    saveHighlight(player, choice, ok, title, pbp);
     list.push({
       tone: ok ? "gold" : "bad",
       kicker: `결정적 순간 · ${choice.stage}`,
-      title: ok ? "⚡ 성공!" : "💥 실패…",
-      lines: news,
+      title,
+      pbp,
+      lines: news.slice(),
       awards: newAwards,
     });
+  } else if (choice.key === "press" && player.lastPress) {
+    const acc = player.lastPress;
+    player.lastPress = null;
+    list.push({ tone: acc.fame >= 0 ? "good" : "bad", kicker: choice.kind === "sign" ? `입단 기자회견 · ${player.team}` : "시즌 결산 기자회견", title: "🎤 기자회견 끝", lines: pressSummary(acc) });
+  } else if (choice.key === "agent" && option.id !== "self") {
+    list.push({ tone: "gold", kicker: "에이전트 계약", title: `🕴️ ${player.agent.name}`, lines: [player.agent.boss, `수수료 ${Math.round(player.agent.rate * 100)}% · 지금부터 FA 협상을 맡아요`] });
   } else if (choice.key === "mlbDirect" && option.id === "go") {
     list.push({ tone: "gold", kicker: "미국 직행", title: `🇺🇸 ${choice.org} 입단!`, lines: news });
   } else if (choice.key === "fa" && option.offer && option.offer.mega) {
@@ -913,21 +942,51 @@ function showBigMoments(list) {
   if ($("big-modal").hidden) nextBigMoment();
 }
 
+// 텍스트 중계(pbp)가 있으면 한 줄씩 나오고 결과는 마지막에 공개됨
+const PBP_STEP = 0.9; // 줄 사이 간격 (초)
+let pbpTimer = null;
 function nextBigMoment() {
-  const m = bigQueue.shift();
   const modal = $("big-modal");
+  // 중계 도중 누르면 닫지 않고 끝까지 바로 보여줌
+  if (modal.classList.contains("playing")) {
+    clearTimeout(pbpTimer);
+    modal.className = `${modal.dataset.tone} pbp-mode skip`;
+    return;
+  }
+  const m = bigQueue.shift();
   if (!m) { modal.hidden = true; return; }
-  modal.className = m.tone || "gold";
+  const pbp = m.pbp && m.pbp.length ? m.pbp : null;
+  // 중계 중엔 테두리 색으로 결과가 새지 않게 중립색
+  modal.dataset.tone = m.tone || "gold";
+  modal.className = pbp ? "pbp-mode playing" : m.tone || "gold";
+  const late = pbp ? `animation-delay:${(pbp.length * PBP_STEP).toFixed(1)}s` : "";
   modal.querySelector(".big-kicker").textContent = m.kicker || "";
-  modal.querySelector(".big-title").textContent = m.title;
+  const title = modal.querySelector(".big-title");
+  title.textContent = m.title;
+  title.className = "big-title" + (pbp ? " late" : "");
+  title.style.cssText = late;
   let body = "";
-  if (m.awards && m.awards.length) body += `<p class="big-awards">${m.awards.map((a) => awardChip(a)).join("")}</p>`;
-  if (m.lines && m.lines.length) body += m.lines.map((l) => `<p>${l}</p>`).join("");
+  if (pbp) body += `<div class="pbp">${pbp.map((l, i) => `<p style="animation-delay:${(i * PBP_STEP).toFixed(1)}s">${l}</p>`).join("")}</div>`;
+  let after = "";
+  if (m.awards && m.awards.length) after += `<p class="big-awards">${m.awards.map((a) => awardChip(a)).join("")}</p>`;
+  if (m.lines && m.lines.length) after += m.lines.map((l) => `<p>${l}</p>`).join("");
+  body += pbp ? `<div class="late" style="${late}">${after}</div>` : after;
   modal.querySelector(".big-body").innerHTML = body;
+  $("big-close").textContent = pbp ? "결과 바로 보기" : "확인";
+  if (pbp) {
+    pbpTimer = setTimeout(() => {
+      modal.className = `${modal.dataset.tone} pbp-mode`;
+      $("big-close").textContent = "확인";
+    }, pbp.length * PBP_STEP * 1000 + 400);
+  }
   modal.hidden = false;
 }
 
-$("big-close").addEventListener("click", nextBigMoment);
+$("big-close").addEventListener("click", () => {
+  const wasPlaying = $("big-modal").classList.contains("playing");
+  nextBigMoment();
+  if (wasPlaying) $("big-close").textContent = "확인";
+});
 $("big-modal").addEventListener("click", (event) => {
   if (event.target.id === "big-modal") nextBigMoment(); // 바깥을 눌러도 닫힘
 });

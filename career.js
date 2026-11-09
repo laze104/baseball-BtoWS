@@ -40,6 +40,7 @@ function initCareer(player) {
   initRules(player);   // 1군 등록 시즌 등 (rules.js)
   initLegacy(player);  // 성장유형 (legacy.js)
   initWorld(player);   // 숨은 특성, 전담 스태프 계약 (world.js)
+  initNemesis(player); // 숙적 목록 (nemesis.js)
   if (!player.contract && !isAmateur(player.league)) {
     player.contract = makeContract(player.league, player.team, 1, minSalary(player.league, player), 0);
   }
@@ -197,11 +198,13 @@ function runSeason(player, focusKeys) {
   report.WAR = round((report.bat ? report.bat.WAR : 0) + (report.pit ? report.pit.WAR : 0), 1);
   report.gameFactor = gameFactor; // 1군 등록일수 계산용
   makeSplits(player, report); // 월별 성적 (extra.js)
+  makeTracking(player, report); // 구속·구종·비거리·타구 방향 (broadcast.js)
   historicMoment(player, report);
 
   // (4) 팀 순위, 리그 기록 순위, 수상
   teamStanding(player, report);
   statRanks(player, report);
+  makeLeaders(player, report); // 리그 리더보드 (almanac.js)
   checkAwards(player, report);
   postseasonStats(player, report, mod); // 포스트시즌 기록 (extra.js)
   rivalSeason(player, report); // 라이벌도 같은 해 시즌을 보냄
@@ -218,7 +221,7 @@ function runSeason(player, focusKeys) {
   player.leagueSeasons[player.league] = (player.leagueSeasons[player.league] || 0) + 1;
   player.history.push({
     season: player.season, age: player.age, year: report.year, league: player.league, team: player.team,
-    bat: report.bat, pit: report.pit, WAR: report.WAR, psBat: report.psBat, psPit: report.psPit, psWAR: report.psWAR, tradedFrom: report.tradedFrom, awards: report.awards.slice(), events: report.events.slice(),
+    bat: report.bat, pit: report.pit, WAR: report.WAR, psBat: report.psBat, psPit: report.psPit, psWAR: report.psWAR, tradedFrom: report.tradedFrom, awards: report.awards.slice(), events: report.events.slice(), track: report.track, leaders: report.leaders,
     standing: report.standing && { rank: report.standing.rank, teams: report.standing.teams, w: report.standing.w, l: report.standing.l, group: report.standing.group, seed: report.standing.seed, all: report.standing.all, altChamp: report.standing.altChamp },
   });
 
@@ -234,6 +237,13 @@ function runSeason(player, focusKeys) {
   beforeFeedStory(player, report);
   buildFeed(player, report);
   afterSeasonStory(player, report);
+
+  // (10) v16: 숙적, 신기록, 기자회견
+  nemesisSeason(player, report); // 숙적 맞대결 (nemesis.js)
+  nemesisMemes(player, report);
+  nemesisLife(player, report);   // 숙적 은퇴·이적·감독 부임
+  trackRecords(player, report);  // 구속·비거리 신기록 팝업 (broadcast.js)
+  pressSeason(player, report);   // 기자회견 + 작년 공약 회수 (press.js)
   return report;
 }
 
@@ -524,6 +534,13 @@ function resolveChoice(player, id) {
     if (wasAbroad && o.league === "KBO" && player.age >= 31) news.push(fillText(NEWS.special.vetReturn, player, {}));
     const move = franchiseMoveNews(player, oldTeam);
     if (move) news.push(move.line);
+    if (!stayed && TOP_LEAGUES.includes(o.league)) pressSigning(player, oldTeam); // 입단 기자회견 (press.js)
+  } else if (choice.key === "agent") {
+    news.push(...resolveAgent(player, choice, option)); // 에이전트 (agent.js)
+  } else if (choice.key === "press") {
+    news.push(...resolvePress(player, choice, option)); // 기자회견 (press.js)
+  } else if (choice.key === "nemesisMate") {
+    news.push(...resolveNemesisMate(player, choice, option)); // 어제의 적 (nemesis.js)
   } else if (choice.key === "closerOffer") {
     news.push(...resolveCloserOffer(player, choice, option));
   } else if (choice.key === "managerTalk") {

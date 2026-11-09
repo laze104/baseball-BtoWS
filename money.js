@@ -220,14 +220,16 @@ function overseasBuzz(player) {
 
 // FA 선택지 만들기: 팀 사정 반영 + 협상 테이블 (extra.js)
 function faChoice(player, reason) {
-  const offers = applyNeeds(player, generateOffers(player));
+  const ask = agentPitch(player, reason); // FA 대박 예감이면 에이전시가 먼저 찾아옴 (agent.js)
+  if (ask) return ask;
+  const offers = agentBoost(player, applyNeeds(player, generateOffers(player)));
   // 베테랑인데 해외 오퍼가 왔으면 크게 알려줌
   const buzz = overseasBuzz(player);
   if (buzz && offers.some((o) => o.veteran)) {
     const lgs = [...new Set(offers.filter((o) => o.veteran).map((o) => LEAGUES[o.league].name))].join("·");
     reason = `🌏 ${koreanAge(player.age)}세지만 ${buzz.reasons.join(", ")} 성적을 보고 ${lgs} 구단이 연락해 왔어요! ` + reason;
   }
-  return buildFaChoice(player, reason, offers, { waits: 0, negos: 0 });
+  return buildFaChoice(player, agentLine(player) + reason, offers, { waits: 0, negos: 0 });
 }
 
 // 계약 확정
@@ -241,8 +243,9 @@ function signContract(player, offer) {
   if (offer.league === "KBO") player.kboRights = null; // KBO로 돌아오면 보류권 정리
   player.league = offer.league;
   player.team = offer.team;
-  player.contract = { ...makeContract(offer.league, offer.team, offer.years, offer.total, offer.bonus), isFA: true };
-  addMoney(player, offer.bonus); // 계약금은 바로 들어옴
+  const rate = agentRate(player); // 에이전트 수수료 (agent.js)
+  player.contract = { ...makeContract(offer.league, offer.team, offer.years, offer.total, offer.bonus), isFA: true, agentRate: rate };
+  addMoney(player, payAgent(player, offer.bonus, rate)); // 계약금은 바로 들어옴
   return moved;
 }
 
@@ -257,7 +260,7 @@ function addMoney(player, amount) {
 // 시즌이 끝나면 연봉이 들어옴
 function payday(player, report) {
   const salary = player.contract ? player.contract.salary : minSalary(player.league, player);
-  addMoney(player, salary);
+  addMoney(player, payAgent(player, salary, player.contract ? player.contract.agentRate : 0)); // 에이전트 계약이면 수수료 뗌
   payServices(player, report); // 전담 스태프 연 계약 (world.js)
   return salary;
 }
