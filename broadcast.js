@@ -219,7 +219,8 @@ function sprayHtml(t) {
 function buildPbp(player, choice, optionId, ok, nem) {
   const lr = player.lastReport;
   const lg = (lr && lr.league) || player.league;
-  const opp = nem ? nem.team : otherTeam(player, lg);
+  const o = choice.opp; // 고르기 전 화면에서 정한 상대 (prepClutch)
+  const opp = o ? o.team : nem ? nem.team : otherTeam(player, lg);
   const tag = nem && nem.stage >= 2 ? ` (숙적 · ${NEMESIS_STAGES[nem.stage]})` : "";
   const lines = [`🎙️ ${choice.stage}`, choice.situation];
   const nohit = choice.situation.includes("노히트노런");
@@ -227,8 +228,8 @@ function buildPbp(player, choice, optionId, ok, nem) {
   const level = LEAGUES[lg] ? LEAGUES[lg].level : 58;
 
   if (choice.side === "bat") {
-    const pitcher = (nem ? nem.name : fakeName(lg)) + tag;
-    const v = round(140 + (level - 35) * 0.25 + Math.random() * 4, 0); // 상대 투수 구속은 리그 수준 따라감
+    const pitcher = (o ? o.name : nem ? nem.name : fakeName(lg)) + tag;
+    const v = o && o.velo ? Math.round(o.velo) : round(140 + (level - 35) * 0.25 + Math.random() * 4, 0); // 상대 투수 구속은 리그 수준 따라감
     const power = player.stats.power || 50;
     const dist = Math.round(112 + power * 0.22 + Math.random() * 10);
     const pullSide = batSide(player) === "우" ? "좌측" : "우측";
@@ -254,11 +255,11 @@ function buildPbp(player, choice, optionId, ok, nem) {
       else lines.push(pick([`높이 뜬 타구… 유격수가 자리 잡고 잡아냅니다.`, `2루수 정면 땅볼… 1루에서 아웃.`, `잘 맞았지만 우익수 정면! 아쉽습니다.`]));
     }
   } else {
-    const batter = (nem ? nem.name : fakeName(lg)) + tag;
+    const batter = (o ? o.name : nem ? nem.name : fakeName(lg)) + tag;
     const list = player.arsenal || ["포심", "슬라이더"];
     const brk = list[1] || "슬라이더";
     const vmax = round(avgVelo(player, "pen") + 3 + Math.random() * 3, 1);
-    lines.push(`타석엔 ${opp} 중심 타자 ${batter}. 올 시즌 홈런 ${randomInt(18, 38)}개를 친 강타자예요.`);
+    lines.push(`타석엔 ${opp} 중심 타자 ${batter}. 올 시즌 홈런 ${o && o.hr ? o.hr : randomInt(18, 38)}개를 친 강타자예요.`);
     if (optionId === "heat") {
       lines.push(`초구 ${round(vmax - 2, 1)}km/h 포심, 파울! 2구도 포심, 헛스윙!`);
       lines.push(`볼카운트 0-2. 포수는 다시 직구 사인을 냅니다…`);
@@ -294,4 +295,66 @@ function saveHighlight(player, choice, ok, title, pbp) {
   const lr = player.lastReport;
   list.push({ year: lr ? lr.year : gameYear(player), team: lr ? lr.team : player.team, stage: choice.stage, ok, title, pbp });
   if (list.length > 20) list.shift();
+}
+
+// ---------------------------------------------
+// 5. 결정적 순간 고르기 전 화면 (중계 화면 느낌)
+// ---------------------------------------------
+// 상대를 미리 정해 둠 (숙적이면 숙적). 고른 뒤 중계도 같은 상대로 나감
+function prepClutch(player, choice) {
+  if (choice.opp) return false;
+  const lr = player.lastReport;
+  const lg = (lr && lr.league) || player.league;
+  const level = LEAGUES[lg] ? LEAGUES[lg].level : 58;
+  const nem = TOP_LEAGUES.includes(lg) ? clutchNemesis(player, choice.side) : null;
+  const o = { name: nem ? nem.name : fakeName(lg), team: nem ? nem.team : otherTeam(player, lg), nemId: nem ? nem.id : null };
+  if (choice.side === "bat") {
+    o.velo = round(140 + (level - 35) * 0.25 + Math.random() * 4, 0);
+    o.pitch = pick(["슬라이더", "포크", "커브", "체인지업", "스위퍼"]);
+    o.era = (2 + Math.random() * 2).toFixed(2);
+  } else {
+    o.hr = randomInt(18, 38);
+    o.avg = fmtRate(0.27 + Math.random() * 0.06);
+  }
+  choice.opp = o;
+  return true;
+}
+
+// 상황 글에서 주자·아웃·볼카운트 뽑기
+function parseSituation(text) {
+  const t = text || "";
+  const bases = [false, false, false];
+  if (t.includes("만루")) bases.fill(true);
+  const m = t.match(/([123](?:·[123])*)루/);
+  if (m && !t.includes("만루")) for (const b of m[1].split("·")) bases[Number(b) - 1] = true;
+  const outs = t.includes("2사") ? 2 : t.includes("1사") ? 1 : 0;
+  const count = t.includes("풀카운트") ? "3-2" : "0-0";
+  const inn = (t.match(/(\d+)회(초|말)?/) || [])[0] || "";
+  return { bases, outs, count, inn };
+}
+
+function clutchBoardHtml(player, choice) {
+  const o = choice.opp || {};
+  const s = parseSituation(choice.situation);
+  const nem = o.nemId ? (player.nemeses || []).find((n) => n.id === o.nemId) : null;
+  const base = (on, x, y) => `<rect x="${x - 9}" y="${y - 9}" width="18" height="18" transform="rotate(45 ${x} ${y})" fill="${on ? "#e8b931" : "none"}" stroke="#f1f5f2" stroke-width="2"/>`;
+  const diamond = `<svg viewBox="0 0 80 64" class="cb-diamond" aria-label="주자 상황">${base(s.bases[1], 40, 14)}${base(s.bases[2], 16, 38)}${base(s.bases[0], 64, 38)}<path d="M34,58 h12 v-4 l-6,-5 l-6,5 z" fill="#f1f5f2"/></svg>`;
+  const outs = [0, 1].map((i) => `<i class="${i < s.outs ? "on" : ""}"></i>`).join("");
+  const me = choice.side === "bat" ? "타석" : "마운드";
+  let opp;
+  if (choice.side === "bat") opp = `<b>투수 ${o.name}</b><small>${o.team} · 최고 ${o.velo}km/h · 주무기 ${o.pitch} · 평균자책 ${o.era}</small>`;
+  else opp = `<b>타자 ${o.name}</b><small>${o.team} · 타율 ${o.avg} · ${o.hr}홈런</small>`;
+  let nemLine = "";
+  if (nem) {
+    const ab = Math.max(1, nem.tot.PA - nem.tot.BB);
+    nemLine = `<p class="cb-nem">⚔️ 숙적 · ${NEMESIS_STAGES[nem.stage]}${nem.revenge ? " · 🔥 복수 다짐" : ""}<br>통산 ${nem.tot.PA}타석 ${nem.tot.H}안타 ${nem.tot.HR}홈런 ${nem.tot.K}삼진 (${choice.side === "bat" ? "타율" : "피안타율"} ${fmtRate(nem.tot.H / ab)})${nem.memory ? `<br>“${nem.memory}”` : ""}</p>`;
+  }
+  return `<div class="clutch-board">
+    <div class="cb-top"><span class="live">● LIVE</span><b>${choice.stage}</b></div>
+    <div class="cb-mid">${diamond}<div class="cb-count"><span>${s.inn || "승부처"}</span><span>B-S ${s.count}</span><span class="cb-outs">OUT ${outs}</span></div></div>
+    <p class="cb-sit">${choice.situation}</p>
+    <div class="cb-vs"><div><b>${me} ${player.name}</b><small>${player.team}</small></div><em>VS</em><div>${opp}</div></div>
+    ${nemLine}
+    <p class="cb-q">🎙️ "자, 운명의 승부입니다. ${player.name}, 어떤 선택을 할까요?"</p>
+  </div>`;
 }

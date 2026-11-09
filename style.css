@@ -422,3 +422,21 @@ details.hl p { margin: 4px 0; }
 .nem-rows small { color: #a9b8ad; }
 .small-btn { width: auto; display: inline-block; padding: 2px 8px; font-size: 12px; margin-left: 6px; }
 #big-modal.playing .big-card { border-color: #a9b8ad; box-shadow: 0 0 40px rgba(169, 184, 173, 0.25); }
+/* 결정적 순간 고르기 전 중계 화면 */
+.clutch-board { background: #0d1a12; border: 2px solid #e8b931; border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+.cb-top { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.cb-top .live { background: #c0504d; color: #fff; font-size: 11px; font-weight: bold; padding: 2px 6px; border-radius: 4px; animation: live-blink 1.2s infinite; }
+@keyframes live-blink { 50% { opacity: 0.45; } }
+.cb-mid { display: flex; align-items: center; gap: 14px; margin: 8px 0 4px; }
+.cb-diamond { width: 90px; height: auto; flex-shrink: 0; }
+.cb-count { display: grid; gap: 3px; font-size: 14px; font-weight: bold; }
+.cb-outs i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #f1f5f2; margin-left: 4px; vertical-align: middle; }
+.cb-outs i.on { background: #c0504d; border-color: #c0504d; }
+.cb-sit { font-size: 14px; margin: 6px 0; color: #f1f5f2; }
+.cb-vs { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; background: rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 8px; }
+.cb-vs b { display: block; font-size: 14px; }
+.cb-vs small { display: block; font-size: 11px; color: #a9b8ad; }
+.cb-vs em { font-style: normal; font-weight: bold; color: #e8b931; }
+.cb-vs > div:last-child { text-align: right; }
+.cb-nem { font-size: 12px; color: #ffb3ad; background: rgba(192, 80, 77, 0.15); border-radius: 6px; padding: 6px 8px; margin: 8px 0 0; }
+.cb-q { font-size: 13px; color: #e8b931; margin: 8px 0 0; }

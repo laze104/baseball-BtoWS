@@ -575,11 +575,15 @@ function forcedRetireChoice(player) {
   if (player.age <= 44 && ovr >= 38 && (player.extended || 0) < 2) {
     options.push({ id: "extend", label: "현역 연장 (입단 테스트)", detail: `테스트 통과하면 퓨처스 육성 선수, 아니면 독립리그에서 다시 · 통과 가능성 ${chanceLabel(tryoutChance(player))}` });
   }
-  return {
-    key: "forcedRetire",
-    text: "더 이상 불러주는 팀이 없어요. 유니폼을 벗을까요, 아니면 입단 테스트라도 받아 볼까요?",
-    options,
-  };
+  // 입단 테스트가 안 되면 이유를 같이 보여줌
+  let text = "더 이상 불러주는 팀이 없어요. 유니폼을 벗을까요, 아니면 입단 테스트라도 받아 볼까요?";
+  if (options.length === 1) {
+    const why = (player.extended || 0) >= 2 ? "입단 테스트 기회 2번을 이미 다 썼어요"
+      : player.age > 44 ? `${koreanAge(player.age)}세라 입단 테스트를 받아 주는 팀이 없어요 (만 44세까지)`
+      : `OVR ${ovr}로는 입단 테스트 자격이 안 돼요 (OVR 38 이상)`;
+    text = `더 이상 불러주는 팀이 없어요. ${why}. 이제 유니폼을 벗을 시간이에요.`;
+  }
+  return { key: "forcedRetire", text, options };
 }
 
 function tryoutChance(player) {

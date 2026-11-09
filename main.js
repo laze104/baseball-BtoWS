@@ -325,7 +325,13 @@ function showChoice(player) {
   choicePanel.hidden = !choice;
   seasonPanel.hidden = !!choice;
   if (!choice) return;
-  choicePanel.innerHTML = `<p>${choice.text}</p>`;
+  if (choice.key === "clutch") {
+    // 결정적 순간은 중계 화면처럼 (broadcast.js)
+    if (prepClutch(player, choice)) savePlayer(player);
+    choicePanel.innerHTML = clutchBoardHtml(player, choice);
+  } else {
+    choicePanel.innerHTML = `<p>${choice.text}</p>`;
+  }
   for (const option of choice.options) {
     const button = document.createElement("button");
     button.className = "choice";
@@ -899,11 +905,16 @@ function choiceBigMoments(player, choice, option, news, awardsBefore) {
     const r = player.lastReport;
     const newAwards = r ? r.awards.slice(awardsBefore) : [];
     // 텍스트 중계: 상대가 숙적이면 그 선수로 (broadcast.js, nemesis.js)
-    const nem = clutchNemesis(player, choice.side);
-    const pbp = buildPbp(player, choice, option.id, ok, nem);
-    news.push(...clutchNemesisResult(player, nem, ok, choice));
     const title = ok ? "⚡ 성공!" : "💥 실패…";
-    saveHighlight(player, choice, ok, title, pbp);
+    let pbp = null;
+    try {
+      const nem = choice.opp ? (choice.opp.nemId ? (player.nemeses || []).find((n) => n.id === choice.opp.nemId) : null) : clutchNemesis(player, choice.side);
+      pbp = buildPbp(player, choice, option.id, ok, nem);
+      news.push(...clutchNemesisResult(player, nem, ok, choice));
+      saveHighlight(player, choice, ok, title, pbp);
+    } catch (e) {
+      console.error("중계 만들기 실패 (broadcast.js / nemesis.js 확인)", e); // 중계가 깨져도 결과 팝업은 뜨게
+    }
     list.push({
       tone: ok ? "gold" : "bad",
       kicker: `결정적 순간 · ${choice.stage}`,
