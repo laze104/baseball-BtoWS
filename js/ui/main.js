@@ -6,8 +6,6 @@
 
 const SAVE_KEY = "baseball-save"; // localStorage에 저장할 때 쓰는 이름
 
-// HTML 요소 가져오기
-const $ = (id) => document.getElementById(id);
 const createScreen = $("create-screen");
 const playerScreen = $("player-screen");
 const retiredScreen = $("retired-screen");
@@ -126,8 +124,19 @@ function createPlayer(info) {
 // 3. 탭
 // ---------------------------------------------
 
+// 통산 기록·연감·순위는 '기록' 탭 아래 하위 탭으로 묶음
+const RECORD_SUBTABS = ["record", "almanac", "rank"];
+let lastRecordSub = "record";
+
 function setTab(name) {
+  if (name === "records") name = lastRecordSub; // 기록 탭 누르면 마지막으로 본 하위 탭
+  const inRecords = RECORD_SUBTABS.includes(name);
+  if (inRecords) lastRecordSub = name;
   for (const button of document.querySelectorAll("#tabs button")) {
+    button.classList.toggle("active", button.dataset.tab === (inRecords ? "records" : name));
+  }
+  $("subtabs").hidden = !inRecords; // 하위 탭은 기록 탭일 때만
+  for (const button of document.querySelectorAll("#subtabs button")) {
     button.classList.toggle("active", button.dataset.tab === name);
   }
   for (const tab of document.querySelectorAll(".tab")) {
@@ -136,6 +145,9 @@ function setTab(name) {
 }
 
 $("tabs").addEventListener("click", (event) => {
+  if (event.target.dataset.tab) setTab(event.target.dataset.tab);
+});
+$("subtabs").addEventListener("click", (event) => {
   if (event.target.dataset.tab) setTab(event.target.dataset.tab);
 });
 
@@ -179,17 +191,27 @@ function showPlayer(player) {
 
   const fame = player.fame || 0;
   $("player-header").innerHTML = `
-    <h2>${player.name}${player.nickname ? ` <span class="nick">'${player.nickname}'</span>` : ""} <small>${koreanAge(player.age)}세 · ${player.position} · ${player.hand}</small></h2>
+    <h2>${player.number !== undefined ? `<span class="jersey">${player.number}</span>` : ""}${player.name}${player.nickname ? ` <span class="nick">'${player.nickname}'</span>` : ""} <small>${koreanAge(player.age)}세 · ${player.position} · ${player.hand}</small></h2>
     <p class="stage">${gameYear(player)}년 · ${stageText(player)}<span>💰 ${fmtMoney(player.money)}</span></p>
     <p class="badges"><span class="${fame >= 30 ? "good" : fame <= -10 ? "bad" : ""}">팬 여론 ${fameLabel(fame)} (${fame})</span>${
-      isFranchiseHere(player) ? `<span class="star">★ ${player.team} 프랜차이즈 스타</span>` : ""}${
-      militaryBadge(player)}${player.married ? "<span>💍 기혼</span>" : player.dating ? "<span>💕 열애 중</span>" : ""}${
-      player.kids ? `<span>👶 자녀 ${player.kids}</span>` : ""}${player.pet ? "<span>🐶 반려견</span>" : ""}${player.trainee ? "<span>육성선수 출신</span>" : ""}</p>`;
+      isFranchiseHere(player) ? `<span class="star">★ ${player.team} 프랜차이즈 스타</span>` : ""
+    }${militaryBadge(player)}${player.married ? "<span>💍 기혼</span>" : player.dating ? "<span>💕 열애 중</span>" : ""}${
+      player.kids ? `<span>👶 자녀 ${player.kids}</span>` : ""
+    }${player.pet ? "<span>🐶 반려견</span>" : ""}${player.trainee ? "<span>육성선수 출신</span>" : ""}</p>${chantHtml(player)}`;
 
   let card = "";
-  if (ovrs.bat !== null) card += statListHtml("타자 능력치", player.stats, BATTER_STATS, ovrs.bat, gains);
-  if (ovrs.pit !== null) card += statListHtml("투수 능력치", player.stats, PITCHER_STATS, ovrs.pit, gains);
-  $("player-card").innerHTML = scoutHtml(player) + card; // 성장유형·숨은 특성은 끝까지 비밀
+  const [pos1, pos2] = player.position.split(" 겸 ");
+  if (fogWidth(player)) {
+    // 아마추어: 스카우트 리포트 범위로만 보여줌 (saber.js)
+    if (ovrs.bat !== null) card += fogStatListHtml(player, "타자 능력치", BATTER_STATS, pos2 || pos1, gains);
+    if (ovrs.pit !== null) card += fogStatListHtml(player, "투수 능력치", PITCHER_STATS, pos1, gains);
+    card += fogNote(player);
+  } else {
+    if (ovrs.bat !== null) card += statListHtml("타자 능력치", player.stats, BATTER_STATS, ovrs.bat, gains);
+    if (ovrs.pit !== null) card += statListHtml("투수 능력치", player.stats, PITCHER_STATS, ovrs.pit, gains);
+  }
+  // 지난 메일은 메일 탭에서 봄. 성장유형·숨은 특성은 끝까지 비밀
+  $("player-card").innerHTML = deckHtml(player) + upcomingMilesHtml(player) + scoutHtml(player) + card;
 
   showFocusChoices(player);
   showPositionPanel(player);
@@ -201,6 +223,8 @@ function showPlayer(player) {
   showStandings(player); // 역대 순위 (extra.js)
   showAlmanac(player); // 연감 (almanac.js)
   showNemesis(player); // 숙적 카드 (nemesis.js)
+  showLocker(player); // 동료 탭 (locker.js)
+  showMail(player); // 메일 탭 (mail.js)
   showMoney(player);
   showAchievements($("tab-ach"));
 
@@ -249,12 +273,15 @@ function militaryBadge(player) {
 // 포지션 변경 (비시즌마다 1번)
 function showPositionPanel(player) {
   const box = $("position-panel");
-  if (isServing(player)) { box.innerHTML = ""; return; }
+  if (isServing(player)) {
+    box.innerHTML = "";
+    return;
+  }
   let html = `<details><summary>포지션 변경 <small>(지금: ${player.position} · 비시즌마다 1번)</small></summary><ul class="positions">`;
   for (const pos of positionOptions(player)) {
     const block = positionBlock(player, pos);
     const ovr = ovrAt(player, pos);
-    html += `<li><span>${pos}</span><b class="${ovrClass(ovr)}">OVR ${ovr}</b>
+    html += `<li><span>${pos}</span><b class="${ovrClass(ovr)}">${fogOvrText(player, ovr, pos)}</b>
       <button data-pos="${pos}" ${block ? "disabled" : ""}>${block || "바꾸기"}</button></li>`;
   }
   html += `</ul><p class="small">새 수비 위치는 첫 시즌 적응 기간(컨디션 -2)이 있어요. 지명타자는 수비 능력치가 OVR에서 빠지지만 WAR 보정이 낮아요.</p></details>`;
@@ -269,12 +296,7 @@ function showPositionPanel(player) {
 
 $("position-panel").addEventListener("click", (event) => {
   if (event.target.dataset.wish) {
-    const r = meetManager(currentPlayer, event.target.dataset.wish);
-    addReaction(currentPlayer, currentPlayer.lastReport, [r.news], r.result === "no" ? FAN.lifeBad : FAN.good, {});
-    savePlayer(currentPlayer);
-    showPlayer(currentPlayer);
-    const title = { yes: "✅ 수락", camp: "🤔 캠프에서 결정", no: "❌ 거절" }[r.result];
-    showBigMoments([{ tone: r.result === "yes" ? "gold" : r.result === "camp" ? "good" : "bad", kicker: `감독 면담 · ${r.wish.short}`, title, lines: [r.line] }]);
+    openMeetingTalk(currentPlayer, event.target.dataset.wish); // 1대1 대화 팝업 (talk.js)
     return;
   }
   if (event.target.dataset.nretire) {
@@ -298,6 +320,8 @@ $("position-panel").addEventListener("click", (event) => {
 
 // 선택지별 팬 반응 댓글 묶음
 function reactionPool(key, option, player) {
+  const side = sidePool(key, option, player); // 몸·딜레마·라커룸·논란 등 (flow.js)
+  if (side) return side;
   if (key === "fa" || key === "agent") return FAN.contract;
   if (key === "press") return pressPool(player.lastPressTone); // 기자회견 답변 말투별 (press.js)
   if (key === "clutch") return player.lastClutch ? FAN.clutchGood : FAN.clutchBad;
@@ -315,7 +339,6 @@ function reactionPool(key, option, player) {
   if (key === "life") return option.mood === "bad" ? FAN.lifeBad : FAN.lifeGood;
   if (key === "position") return option.id === "accept" ? FAN.position : FAN.good;
   if (key === "mlbDirect") return option.id === "go" ? FAN.mlbDirect : FAN.good;
-  if (key === "national" && option.id === "nretire") return FAN.nationalRetire;
   return FAN.good;
 }
 
@@ -330,7 +353,7 @@ function showChoice(player) {
     if (prepClutch(player, choice)) savePlayer(player);
     choicePanel.innerHTML = clutchBoardHtml(player, choice);
   } else {
-    choicePanel.innerHTML = `<p>${choice.text}</p>`;
+    choicePanel.innerHTML = mailboxHtml(player); // 메일함 형식 (mail.js)
   }
   for (const option of choice.options) {
     const button = document.createElement("button");
@@ -339,8 +362,11 @@ function showChoice(player) {
     button.addEventListener("click", () => {
       const key = choice.key;
       const awardsBefore = player.lastReport ? player.lastReport.awards.length : 0;
+      logMail(player, choice, option); // 답장한 메일 보관 (mail.js)
       const news = resolveChoice(player, option.id);
       const moments = choiceBigMoments(player, choice, option, news, awardsBefore);
+      moments.push(...memeAfterClutch(player, choice, news)); // 밈 생기기·뒤집기 (meme.js)
+      if (!player.retired) news.push(...fandomMove(player, null)); // FA·트레이드로 팀 옮겼으면 팬심 (fandom.js)
       if (!player.retired) news.push(...checkAchievements(player).map((n) => `🏅 업적 달성: ${n}`));
       if (player.retired) {
         localStorage.removeItem(SAVE_KEY);
@@ -362,8 +388,12 @@ function batRecordHtml(b) {
     <tr><td>${b.G}</td><td>${fmtRate(b.AVG)}</td><td>${b.HR}</td><td>${b.RBI}</td><td>${b.R}</td><td>${b.SB}</td></tr>
     <tr><th>출루율</th><th>장타율</th><th>OPS</th><th>볼넷</th><th>삼진</th><th>WAR</th></tr>
     <tr><td>${fmtRate(b.OBP)}</td><td>${fmtRate(b.SLG)}</td><td>${fmtRate(b.OPS)}</td><td>${b.BB}</td><td>${b.K}</td><td>${b.WAR}</td></tr>
-    ${b.BABIP !== undefined ? `<tr><th>BABIP</th><th>안타</th><th>2루타</th><th>실책</th><th>수비율</th><th>${b.SBA ? "도루저지" : "타석"}</th></tr>
-    <tr><td>${fmtRate(b.BABIP)}</td><td>${b.H}</td><td>${b.D}</td><td>${b.CH ? b.E : "-"}</td><td>${b.CH ? fmtRate(b.FPCT) : "-"}</td><td>${b.SBA ? `${fmtRate(b.CS / b.SBA)}` : b.PA}</td></tr>` : ""}</table>`;
+    ${
+      b.BABIP !== undefined
+        ? `<tr><th>BABIP</th><th>안타</th><th>2루타</th><th>실책</th><th>수비율</th><th>${b.SBA ? "도루저지" : "타석"}</th></tr>
+    <tr><td>${fmtRate(b.BABIP)}</td><td>${b.H}</td><td>${b.D}</td><td>${b.CH ? b.E : "-"}</td><td>${b.CH ? fmtRate(b.FPCT) : "-"}</td><td>${b.SBA ? `${fmtRate(b.CS / b.SBA)}` : b.PA}</td></tr>`
+        : ""
+    }${batSaberRow(b)}</table>`;
 }
 
 function pitRecordHtml(p) {
@@ -371,18 +401,29 @@ function pitRecordHtml(p) {
     <tr><td>${p.G}</td><td>${p.W}</td><td>${p.L}</td><td>${p.HLD}</td><td>${p.SV}</td><td>${fmtInnings(p.outs)}</td></tr>
     <tr><th>평균자책</th><th>탈삼진</th><th>볼넷</th><th>피홈런</th><th>WHIP</th><th>WAR</th></tr>
     <tr><td>${p.ERA.toFixed(2)}</td><td>${p.K}</td><td>${p.BB}</td><td>${p.HR}</td><td>${p.WHIP.toFixed(2)}</td><td>${p.WAR}</td></tr>
-    ${p.BABIP !== undefined ? `<tr><th>피BABIP</th><th>피안타</th><th>실점</th><th>자책</th><th>실책</th><th>K/9</th></tr>
-    <tr><td>${fmtRate(p.BABIP)}</td><td>${p.H}</td><td>${p.R}</td><td>${p.ER}</td><td>${p.CH ? p.E : "-"}</td><td>${p.outs ? ((p.K * 27) / p.outs).toFixed(1) : "-"}</td></tr>` : ""}</table>`;
+    ${
+      p.BABIP !== undefined
+        ? `<tr><th>피BABIP</th><th>피안타</th><th>실점</th><th>자책</th><th>실책</th><th>K/9</th></tr>
+    <tr><td>${fmtRate(p.BABIP)}</td><td>${p.H}</td><td>${p.R}</td><td>${p.ER}</td><td>${p.CH ? p.E : "-"}</td><td>${p.outs ? ((p.K * 27) / p.outs).toFixed(1) : "-"}</td></tr>`
+        : ""
+    }${pitSaberRow(p)}</table>`;
 }
 
 function showSeasonResult(report) {
   const box = $("tab-result");
-  if (!report) { box.innerHTML = "<p class='empty'>아직 치른 시즌이 없어요.</p>"; return; }
+  if (!report) {
+    box.innerHTML = "<p class='empty'>아직 치른 시즌이 없어요.</p>";
+    return;
+  }
   let html = `<h3>${report.year}년 (${koreanAge(report.age)}세) 시즌 <small>${LEAGUES[report.league].name} · ${report.team}</small></h3>`;
 
   if (report.standing) {
     const s = report.standing;
-    const ps = s.seed ? ` <span class="ps">${s.psLabel} 진출${report.league === "KBO" ? "" : ` · ${s.seed}번 시드`}</span>` : s.psLabel ? ` <span class="ps out">${s.psLabel} 탈락</span>` : "";
+    const ps = s.seed
+      ? ` <span class="ps">${s.psLabel} 진출${report.league === "KBO" ? "" : ` · ${s.seed}번 시드`}</span>`
+      : s.psLabel
+        ? ` <span class="ps out">${s.psLabel} 탈락</span>`
+        : "";
     html += `<p class="standing">${s.group ? `${s.group} ` : ""}<b>${s.rank}위</b> / ${s.teams}팀 · ${s.w}승 ${s.l}패${ps}</p>`;
   }
   if (report.events.length) html += `<p class="chips">${report.events.map((e) => `<span>${e}</span>`).join("")}</p>`;
@@ -404,7 +445,8 @@ function showSeasonResult(report) {
   if (report.awards.length) html += `<p class="chips awards">${report.awards.map((a) => awardChip(a)).join("")}</p>`;
   if (report.postseason) html += postseasonHtml(report);
   if (report.races) html += racesHtml(report);
-  if (report.allStar) html += `<p class="small">⭐ 올스타 선정${report.allStar.fanPick ? " (팬 투표 1위!)" : ""}${report.allStar.mvp ? " · 미스터 올스타 (올스타전 MVP)" : ""}</p>`;
+  if (report.allStar)
+    html += `<p class="small">⭐ 올스타 선정${report.allStar.fanPick ? " (팬 투표 1위!)" : ""}${report.allStar.mvp ? " · 미스터 올스타 (올스타전 MVP)" : ""}</p>`;
   if (report.salary) html += `<p class="small">올해 연봉 ${fmtMoney(report.salary)} 수령</p>`;
   if (report.newAchievements && report.newAchievements.length) {
     html += `<p class="chips awards">${report.newAchievements.map((a) => `<span>🏅 업적: ${a}</span>`).join("")}</p>`;
@@ -426,8 +468,13 @@ function showSeasonResult(report) {
 // 고교 전국대회 성적표
 function hsLeagueHtml(list) {
   return `<h4>주말리그 <small>(${list[0].region}권)</small></h4><ul class="hs-cups">${list
-    .map((x) => `<li><span>${x.half}</span><b class="${x.rank === 1 ? "gold" : x.qualified ? "good" : ""}">${x.rank}위 / ${x.size}팀 · ${x.w}승 ${x.l}패${x.qualified ? " · 본선 진출" : ""}</b></li>`)
-    .join("")}</ul><p class="small">전반기 상위 절반은 황금사자기·청룡기, 후반기 상위 절반은 대통령배 본선에 나가요. 이마트배·봉황대기는 모든 학교가 참가해요.</p>`;
+    .map(
+      (x) =>
+        `<li><span>${x.half}</span><b class="${x.rank === 1 ? "gold" : x.qualified ? "good" : ""}">${x.rank}위 / ${x.size}팀 · ${x.w}승 ${x.l}패${x.qualified ? " · 본선 진출" : ""}</b></li>`,
+    )
+    .join(
+      "",
+    )}</ul><p class="small">전반기 상위 절반은 황금사자기·청룡기, 후반기 상위 절반은 대통령배 본선에 나가요. 이마트배·봉황대기는 모든 학교가 참가해요.</p>`;
 }
 
 function hsTournamentHtml(list, title) {
@@ -443,7 +490,12 @@ function monthlyChartHtml(report) {
   const m = s.monthly;
   const n = m.months.length;
   const N = s.teams;
-  const W = 340, H = 200, L = 34, R = 64, T = 12, B = 26;
+  const W = 340,
+    H = 200,
+    L = 34,
+    R = 64,
+    T = 12,
+    B = 26;
   const x = (i) => L + (i * (W - L - R)) / (n - 1);
   const y = (rank) => T + ((rank - 1) * (H - T - B)) / (N - 1);
   let svg = `<svg class="rank-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="월별 팀 순위">`;
@@ -476,7 +528,10 @@ function monthlyChartHtml(report) {
   if (my) {
     const max = Math.max(...my.values);
     html += `<h4>${my.label}</h4><div class="month-bars">${my.values
-      .map((v, i) => `<div><span class="val">${my.isBat ? fmtRate(v) : v.toFixed(2)}</span><span class="bar-v" style="height:${Math.round((v / max) * 60) + 4}px"></span><span class="mon">${m.months[i]}월</span></div>`)
+      .map(
+        (v, i) =>
+          `<div><span class="val">${my.isBat ? fmtRate(v) : v.toFixed(2)}</span><span class="bar-v" style="height:${Math.round((v / max) * 60) + 4}px"></span><span class="mon">${m.months[i]}월</span></div>`,
+      )
       .join("")}</div>`;
   }
   return html;
@@ -495,15 +550,22 @@ function commentHtml(c, best) {
 
 function showBoard(player, report) {
   const box = $("tab-board");
-  if (!report || !report.comments) { box.innerHTML = "<p class='empty'>아직 반응이 없어요.</p>"; return; }
+  if (!report || !report.comments) {
+    box.innerHTML = "<p class='empty'>아직 반응이 없어요.</p>";
+    return;
+  }
   const comments = report.comments;
-  const best = [...comments].filter((c) => c.likes >= 50).sort((a, b) => b.likes - a.likes).slice(0, 2);
+  const best = [...comments]
+    .filter((c) => c.likes >= 50)
+    .sort((a, b) => b.likes - a.likes)
+    .slice(0, 2);
   const views = 1000 + comments.length * randomInt(300, 900);
   // 갤러리형(dc) / 커뮤형(fm) 게시판 (news.js applySkin)
   const fm = report.skin === "fm";
   const post = report.post || { title: report.news[0], body: "이번 시즌 어떻게 봄?" };
   const link = report.news[0] ? `<p class="post-link" onclick="openArticle(0)">📰 [기사] ${report.news[0]}</p>` : "";
-  let html = `<div class="board ${fm ? "fm" : ""}">
+  let html = fandomHtml(player) + memeHtml(player) + `<div class="board ${fm ? "fm" : ""}">`; // 팬심·밈 (fandom.js, meme.js)
+  html += `
     <div class="board-title">${fm ? "⚾ 야구 게시판 <small>인기글</small>" : "⚾ 야구 갤러리 <small>개념글</small>"}</div>
     <div class="post">
       <div class="post-title">${post.title}</div>
@@ -525,7 +587,7 @@ function batRow(label, team, b, cls, showCS) {
   const fpct = b.FPCT !== undefined && b.FPCT !== null ? b.FPCT : b.CH ? (b.CH - b.E) / b.CH : null;
   return `<tr class="${cls || ""}"><td class="sticky">${label}</td><td>${team}</td><td>${b.G}</td><td>${fmtRate(b.AVG)}</td><td>${b.PA}</td><td>${b.AB}</td>
     <td>${b.R}</td><td>${b.H}</td><td>${b.D}</td><td>${b.T}</td><td>${b.HR}</td><td>${b.RBI}</td><td>${b.SB}</td><td>${b.BB}</td><td>${b.K}</td>
-    <td>${fmtRate(b.OBP)}</td><td>${fmtRate(b.SLG)}</td><td>${fmtRate(b.OPS)}</td><td>${dash(b.BABIP !== undefined ? b.BABIP : b.AB ? babip(b) : undefined, fmtRate)}</td><td>${b.WAR}</td>
+    <td>${fmtRate(b.OBP)}</td><td>${fmtRate(b.SLG)}</td><td>${fmtRate(b.OPS)}</td><td>${dash(b.BABIP !== undefined ? b.BABIP : b.AB ? babip(b) : undefined, fmtRate)}</td><td>${b.WAR}</td>${batSaberCells(b)}
     <td>${b.CH ? b.E : "-"}</td><td>${dash(fpct, fmtRate)}</td>${showCS ? `<td>${csRate(b)}</td>` : ""}</tr>`;
 }
 
@@ -533,23 +595,68 @@ function pitRow(label, team, p, cls) {
   const pb = p.BABIP !== undefined ? p.BABIP : p.outs ? pitBabip(p) : undefined;
   return `<tr class="${cls || ""}"><td class="sticky">${label}</td><td>${team}</td><td>${p.G}</td><td>${p.GS}</td><td>${p.W}</td><td>${p.L}</td>
     <td>${p.SV}</td><td>${p.HLD}</td><td>${fmtInnings(p.outs)}</td><td>${p.H}</td><td>${p.HR}</td><td>${p.BB}</td><td>${p.K}</td>
-    <td>${p.R}</td><td>${p.ER}</td><td>${p.ERA.toFixed(2)}</td><td>${p.WHIP.toFixed(2)}</td><td>${dash(pb, fmtRate)}</td><td>${p.WAR}</td>
+    <td>${p.R}</td><td>${p.ER}</td><td>${p.ERA.toFixed(2)}</td><td>${p.WHIP.toFixed(2)}</td><td>${dash(pb, fmtRate)}</td><td>${p.WAR}</td>${pitSaberCells(p)}
     <td>${p.CH ? p.E : "-"}</td><td>${p.CH ? fmtRate((p.CH - p.E) / p.CH) : "-"}</td></tr>`;
 }
 
 const BAT_HEAD = (showCS) => `<tr><th class="sticky">연도</th><th>팀</th><th>경기</th><th>타율</th><th>타석</th><th>타수</th>
-  <th>득점</th><th>안타</th><th>2타</th><th>3타</th><th>홈런</th><th>타점</th><th>도루</th><th>볼넷</th><th>삼진</th><th>출루율</th><th>장타율</th><th>OPS</th><th>BABIP</th><th>WAR</th>
+  <th>득점</th><th>안타</th><th>2타</th><th>3타</th><th>홈런</th><th>타점</th><th>도루</th><th>볼넷</th><th>삼진</th><th>출루율</th><th>장타율</th><th>OPS</th><th>BABIP</th><th>WAR</th><th>wRC+</th><th>K%</th><th>BB%</th>
   <th>실책</th><th>수비율</th>${showCS ? "<th>도루저지율</th>" : ""}</tr>`;
 const PIT_HEAD = `<tr><th class="sticky">연도</th><th>팀</th><th>경기</th><th>선발</th><th>승</th><th>패</th>
-  <th>세이브</th><th>홀드</th><th>이닝</th><th>피안타</th><th>피홈런</th><th>볼넷</th><th>삼진</th><th>실점</th><th>자책</th><th>평균자책</th><th>WHIP</th><th>피BABIP</th><th>WAR</th><th>실책</th><th>수비율</th></tr>`;
+  <th>세이브</th><th>홀드</th><th>이닝</th><th>피안타</th><th>피홈런</th><th>볼넷</th><th>삼진</th><th>실점</th><th>자책</th><th>평균자책</th><th>WHIP</th><th>피BABIP</th><th>WAR</th><th>FIP</th><th>K%</th><th>BB%</th><th>실책</th><th>수비율</th></tr>`;
 
 // 통산 합계를 표 한 줄 모양으로
 function totalsAsBat(t) {
-  return { G: t.G, AVG: t.AVG, PA: t.PA, AB: t.AB, R: t.R, H: t.H, D: t.D, T: t.T, HR: t.HR, RBI: t.RBI, SB: t.SB, BB: t.BB, K: t.K, OBP: t.OBP, SLG: t.SLG, OPS: t.OPS, WAR: t.WAR,
-    BABIP: t.BABIP, CH: t.CH, E: t.E, FPCT: t.FPCT, SBA: t.SBA, CS: t.CS };
+  return {
+    G: t.G,
+    AVG: t.AVG,
+    PA: t.PA,
+    AB: t.AB,
+    R: t.R,
+    H: t.H,
+    D: t.D,
+    T: t.T,
+    HR: t.HR,
+    RBI: t.RBI,
+    SB: t.SB,
+    BB: t.BB,
+    K: t.K,
+    OBP: t.OBP,
+    SLG: t.SLG,
+    OPS: t.OPS,
+    WAR: t.WAR,
+    BABIP: t.BABIP,
+    CH: t.CH,
+    E: t.E,
+    FPCT: t.FPCT,
+    SBA: t.SBA,
+    CS: t.CS,
+    wRC: t.wRC,
+  };
 }
 function totalsAsPit(t) {
-  return { G: t.pG, GS: t.GS, W: t.W, L: t.L, SV: t.SV, HLD: t.HLD, outs: t.outs, H: t.pH, HR: t.pHR, BB: t.pBB, K: t.pK, R: t.pR, ER: t.ER, ERA: t.ERA, WHIP: t.WHIP, WAR: t.WAR, BABIP: t.pBABIP, CH: t.pCH, E: t.pE };
+  return {
+    G: t.pG,
+    GS: t.GS,
+    W: t.W,
+    L: t.L,
+    SV: t.SV,
+    HLD: t.HLD,
+    outs: t.outs,
+    H: t.pH,
+    HR: t.pHR,
+    BB: t.pBB,
+    K: t.pK,
+    R: t.pR,
+    ER: t.ER,
+    ERA: t.ERA,
+    WHIP: t.WHIP,
+    WAR: t.WAR,
+    BABIP: t.pBABIP,
+    CH: t.pCH,
+    E: t.pE,
+    FIP: t.FIP,
+  };
 }
 
 function showRecord(player) {
@@ -569,7 +676,8 @@ function awardChip(name, text) {
 function recordHtml(player, noRival) {
   if (!player.history.length) return "<p class='empty'>아직 기록이 없어요.</p>";
   const short = (t) => t.split(" ")[0];
-  const teamName = (h) => (isAmateur(h.league) ? h.team : `${h.tradedFrom ? `${short(h.tradedFrom)}→` : ""}${short(h.team)}${h.league === "KBO2" ? "(2군)" : ""}`);
+  const teamName = (h) =>
+    isAmateur(h.league) ? h.team : `${h.tradedFrom ? `${short(h.tradedFrom)}→` : ""}${short(h.team)}${h.league === "KBO2" ? "(2군)" : ""}`;
   const leaguesPlayed = [...new Set(player.history.map((h) => h.league))].filter((l) => TOP_LEAGUES.includes(l));
   let html = "";
 
@@ -592,7 +700,7 @@ function recordHtml(player, noRival) {
     html += "</table></div>";
   }
   html += nationalRecordHtml(player); // 국가대표 기록 (extra.js)
-  html += `<p class="small">회색 줄은 고교·아마추어 기록이라 통산에서 빠져요. 표는 옆으로 밀어서 볼 수 있어요.</p>`;
+  html += `<p class="small">회색 줄은 고교·아마추어 기록이라 통산에서 빠져요. 표는 옆으로 밀어서 볼 수 있어요. ${SABER_NOTE}</p>`;
 
   const awardList = Object.entries(player.awards);
   html += `<h4>수상 경력</h4>${awardList.length ? `<p class="chips awards">${awardList.map(([k, v]) => awardChip(k, `${k} ${v}회`)).join("")}</p>` : "<p class='small'>아직 없어요.</p>"}`;
@@ -611,7 +719,7 @@ function rivalCompareHtml(player) {
   const me = careerTotals(player);
   const rows = [
     ["소속", player.team, r.retired ? "은퇴" : r.team],
-    ["최고 OVR", player.bestOvr, r.bestOvr],
+    ["최고 OVR", fogWidth(player) ? "?" : player.bestOvr, fogWidth(player) ? "?" : r.bestOvr],
     ["통산 WAR", me.WAR, rs.WAR],
     ["MVP", countAward(player, "MVP"), rs.MVP],
     ["우승", countAward(player, "시리즈 우승"), rs.champs],
@@ -690,7 +798,8 @@ function serviceHtml(player) {
   html += `</p><p>포스팅: ${s >= FA_RULES.posting ? "자격 있음 (구단 동의 필요)" : `1군 ${FA_RULES.posting}시즌부터 (${FA_RULES.posting - s}시즌 남음)`}`;
   if (player.faCount) html += ` · FA 계약 ${player.faCount}회`;
   html += "</p>";
-  if (player.mlbService) html += `<p>MLB 서비스타임 <b>${player.mlbService}년</b> · ${player.mlbService >= 6 ? "FA 가능" : player.mlbService >= 3 ? "연봉조정 대상" : "연봉조정 전"}</p>`;
+  if (player.mlbService)
+    html += `<p>MLB 서비스타임 <b>${player.mlbService}년</b> · ${player.mlbService >= 6 ? "FA 가능" : player.mlbService >= 3 ? "연봉조정 대상" : "연봉조정 전"}</p>`;
   if (player.kboRights) html += `<p class="small">KBO 복귀 시 보류권: ${player.kboRights}</p>`;
   html += `<p class="small">1군 등록일수 145일(시즌의 약 78%)을 채운 해만 1시즌으로 쳐요. 2군·상무·해외 기간은 빠져요. FA 계약 뒤 다시 FA가 되려면 1군 4시즌이 필요해요.</p></div>`;
   return html;
@@ -727,7 +836,10 @@ function hofHallHtml() {
 // ---------- 은퇴 화면 ----------
 function showRetired(player) {
   const t = careerTotals(player);
-  const awardList = Object.entries(player.awards).map(([k, v]) => `${k} ${v}회`).join(", ") || "없음";
+  const awardList =
+    Object.entries(player.awards)
+      .map(([k, v]) => `${k} ${v}회`)
+      .join(", ") || "없음";
   let html = `<h2>${player.name} 은퇴</h2>
     <p>${player.school} 출신 · ${gameYear(player)}년 ${koreanAge(player.age)}세 은퇴 · 최고 OVR ${player.bestOvr}</p>
     <p>통산 WAR <b>${t.WAR}</b> · 모은 재산 <b>${fmtMoney(player.money)}</b> · FA로 번 돈 <b>${player.faDeals ? `${fmtMoney(player.faEarned)} (${player.faDeals}번 계약)` : "없음"}</b>${player.agentFees ? ` · 에이전트 수수료 ${fmtMoney(player.agentFees)}` : ""}</p>
@@ -744,19 +856,28 @@ function showRetired(player) {
   let table = "<table><tr><th>#</th><th>이름</th><th>통산 WAR</th><th>MVP</th><th>우승</th><th>재산</th></tr>";
   ranking.slice(0, 10).forEach((r, i) => {
     const me = r.name === player.name && r.WAR === careerTotals(player).WAR;
-    table += `<tr class="rank-row${me ? " mine" : ""}" data-rank="${i}"><td>${i + 1}</td><td>${r.name}${r.history ? " 🔍" : ""}</td><td><b>${r.WAR}</b></td><td>${r.MVP}</td><td>${r.champs}</td><td>${r.money !== undefined ? fmtMoney(r.money) : "-"}</td></tr>`;
+    table += `<tr class="rank-row${me ? " mine" : ""}" data-rank="${i}"><td>${i + 1}</td><td>${r.name}${r.banned ? " ⛔" : ""}${r.history ? " 🔍" : ""}</td><td><b>${r.WAR}</b></td><td>${r.MVP}</td><td>${r.champs}</td><td>${r.money !== undefined ? fmtMoney(r.money) : "-"}</td></tr>`;
   });
   $("ranking").innerHTML = table + `</table><p class="small">선수 이름을 누르면 통산 기록을 볼 수 있어요.</p><div id="ranking-detail"></div>`;
 
   // 명예의 전당 투표 결과
   const hof = player.hof;
-  if (hof && hof.eligible === false) {
+  if (hof && hof.banned) {
+    $("hof-result").innerHTML = `<h3>명예의 전당 투표</h3><p>⛔ 승부조작으로 영구 제명돼서 후보 자격이 없어요.</p>`;
+  } else if (hof && hof.eligible === false) {
     $("hof-result").innerHTML = `<h3>명예의 전당 투표</h3><p>프로 ${hof.proYears}시즌이라 후보 자격(프로 10시즌)이 없어요.</p>`;
   } else if (hof) {
-    const bars = hof.ballots.map((b) => `<div class="ballot"><span>${b.year}</span><span class="vbar"><i style="width:${b.pct}%" class="${b.pct >= 75 ? "in" : ""}"></i><em></em></span><b>${b.pct}%</b></div>`).join("");
+    const bars = hof.ballots
+      .map(
+        (b) =>
+          `<div class="ballot"><span>${b.year}</span><span class="vbar"><i style="width:${b.pct}%" class="${b.pct >= 75 ? "in" : ""}"></i><em></em></span><b>${b.pct}%</b></div>`,
+      )
+      .join("");
     const verdict = hof.inducted
       ? `🏛️ <b>${hof.ballot === 1 ? "첫 투표에서" : `${hof.ballot}번째 투표에서`} 명예의 전당 헌액!</b>`
-      : hof.dropped ? "득표율 5% 미만으로 후보에서 빠졌어요." : "10번의 투표에서 끝내 75%를 넘지 못했어요.";
+      : hof.dropped
+        ? "득표율 5% 미만으로 후보에서 빠졌어요."
+        : "10번의 투표에서 끝내 75%를 넘지 못했어요.";
     $("hof-result").innerHTML = `<h3>명예의 전당 투표 <small>(은퇴 5년 뒤부터, 75% 이상 헌액)</small></h3><p>${verdict}</p><div class="ballots">${bars}</div>`;
   }
   $("hof-hall").innerHTML = hofHallHtml();
@@ -772,13 +893,12 @@ function showRetired(player) {
 // ---------------------------------------------
 
 function savePlayer(player) {
-  localStorage.setItem(SAVE_KEY, JSON.stringify(player));
+  if (!saveJSON(SAVE_KEY, player)) console.warn("저장 실패: 브라우저 저장 공간 확인 필요");
 }
 
 function loadPlayer() {
-  const text = localStorage.getItem(SAVE_KEY);
-  if (!text) return null;
-  const player = JSON.parse(text);
+  const player = loadJSON(SAVE_KEY, null);
+  if (!player) return null;
   if (!player.season) player.season = 1;
   initCareer(player);
   // 예전 버전 저장 데이터: 댓글 형식이 달라서 새로 만듦
@@ -800,13 +920,20 @@ form.addEventListener("submit", (event) => {
     school: schoolSelect.value,
     style: styleSelect.value,
   });
+  // 등번호, 서포트 카드
+  const num = parseInt($("number").value, 10);
+  player.number = Number.isNaN(num) ? randomInt(1, 99) : clamp(num, 0, 99);
+  player.wantNumber = player.number;
+  player.numberLog = [{ team: player.team, num: player.number }];
+  setDeck(player, pickedDeck());
   savePlayer(player);
   showPlayer(player);
   setTab("train");
 });
 
 seasonButton.addEventListener("click", () => {
-  if (currentPlayer.pendingChoice) { // 혹시 모를 경우 한 번 더 막음
+  if (currentPlayer.pendingChoice) {
+    // 혹시 모를 경우 한 번 더 막음
     choicePanel.scrollIntoView({ behavior: "smooth", block: "center" });
     return;
   }
@@ -817,6 +944,7 @@ seasonButton.addEventListener("click", () => {
   setTab("result");
   window.scrollTo({ top: 0, behavior: "smooth" });
   showBigMoments(seasonBigMoments(report)); // 수상하면 큰 화면으로
+  showToasts(report.toasts); // 작은 기록은 토스트 (effects.js)
 });
 
 retireButton.addEventListener("click", () => {
@@ -830,20 +958,34 @@ $("reset-button").addEventListener("click", () => {
   if (!confirm("정말 처음부터 다시 할까요? 지금 선수는 사라져요.")) return;
   localStorage.removeItem(SAVE_KEY);
   playerScreen.hidden = true;
+  renderDeckPicker();
   createScreen.hidden = false;
 });
 
 $("new-player-button").addEventListener("click", () => {
   retiredScreen.hidden = true;
+  renderDeckPicker(); // 방금 은퇴한 선수가 레전드 카드로 나올 수 있음
   createScreen.hidden = false;
 });
+
+// 선수 만들기 화면의 서포트 카드 (cards.js)
+function renderDeckPicker() {
+  $("deck-box").innerHTML = deckPickerHtml();
+  $("number").value = randomInt(1, 99);
+}
+$("deck-box").addEventListener("change", (event) => {
+  const picked = pickedDeck();
+  if (picked.length > DECK_SIZE) event.target.checked = false;
+  $("deck-count").textContent = pickedDeck().length;
+});
+renderDeckPicker();
 
 // 시작할 때 저장된 선수가 있으면 바로 보여줌
 const saved = loadPlayer();
 if (saved) showPlayer(saved);
 
 // ---------------------------------------------
-// 7. v9: 순위표, 쇼핑, 큰 화면 알림
+// 7. 순위표, 쇼핑, 큰 화면 알림
 // ---------------------------------------------
 
 // 지구(리그)별 최종 순위표
@@ -852,7 +994,7 @@ function standingTableHtml(report) {
   const top = s.table[0];
   let html = `<h4>${s.group || LEAGUES[report.league].name} 최종 순위</h4><table class="standings"><tr><th>순위</th><th>팀</th><th>승</th><th>패</th><th>승률</th><th>게임차</th></tr>`;
   s.table.forEach((t, i) => {
-    const gb = ((top.w - t.w) + (t.l - top.l)) / 2;
+    const gb = (top.w - t.w + (t.l - top.l)) / 2;
     const cls = [t.team === report.team ? "mine" : "", t.seed ? "in" : ""].join(" ");
     html += `<tr class="${cls}"><td>${i + 1}</td><td>${t.team}${t.seed ? ` <small class="seed">PS${report.league === "KBO" ? "" : " " + t.seed}</small>` : ""}</td><td>${t.w}</td><td>${t.l}</td><td>${(t.w / (t.w + t.l)).toFixed(3).slice(1)}</td><td>${gb ? gb.toFixed(1) : "-"}</td></tr>`;
   });
@@ -907,11 +1049,13 @@ function choiceBigMoments(player, choice, option, news, awardsBefore) {
     // 텍스트 중계: 상대가 숙적이면 그 선수로 (broadcast.js, nemesis.js)
     const title = ok ? "⚡ 성공!" : "💥 실패…";
     let pbp = null;
+    let box = null;
     try {
       const nem = choice.opp ? (choice.opp.nemId ? (player.nemeses || []).find((n) => n.id === choice.opp.nemId) : null) : clutchNemesis(player, choice.side);
-      pbp = buildPbp(player, choice, option.id, ok, nem);
+      pbp = legendCommentary(player, choice, buildPbp(player, choice, option.id, ok, nem), ok); // 명예의 전당 해설 (living.js)
+      box = buildBoxScore(player, choice, option.id, ok); // 박스스코어 (boxscore.js)
       news.push(...clutchNemesisResult(player, nem, ok, choice));
-      saveHighlight(player, choice, ok, title, pbp);
+      saveHighlight(player, choice, ok, title, pbp, box);
     } catch (e) {
       console.error("중계 만들기 실패 (broadcast.js / nemesis.js 확인)", e); // 중계가 깨져도 결과 팝업은 뜨게
     }
@@ -920,23 +1064,44 @@ function choiceBigMoments(player, choice, option, news, awardsBefore) {
       kicker: `결정적 순간 · ${choice.stage}`,
       title,
       pbp,
+      box,
       lines: news.slice(),
       awards: newAwards,
     });
   } else if (choice.key === "press" && player.lastPress) {
     const acc = player.lastPress;
     player.lastPress = null;
-    list.push({ tone: acc.fame >= 0 ? "good" : "bad", kicker: choice.kind === "sign" ? `입단 기자회견 · ${player.team}` : "시즌 결산 기자회견", title: "🎤 기자회견 끝", lines: pressSummary(acc) });
+    list.push({
+      tone: acc.fame >= 0 ? "good" : "bad",
+      kicker: choice.kind === "sign" ? `입단 기자회견 · ${player.team}` : "시즌 결산 기자회견",
+      title: "🎤 기자회견 끝",
+      lines: pressSummary(acc),
+    });
   } else if (choice.key === "agent" && option.id !== "self") {
-    list.push({ tone: "gold", kicker: "에이전트 계약", title: `🕴️ ${player.agent.name}`, lines: [player.agent.boss, `수수료 ${Math.round(player.agent.rate * 100)}% · 지금부터 FA 협상을 맡아요`] });
+    list.push({
+      tone: "gold",
+      kicker: "에이전트 계약",
+      title: `🕴️ ${player.agent.name}`,
+      lines: [player.agent.boss, `수수료 ${Math.round(player.agent.rate * 100)}% · 지금부터 FA 협상을 맡아요`],
+    });
   } else if (choice.key === "mlbDirect" && option.id === "go") {
     list.push({ tone: "gold", kicker: "미국 직행", title: `🇺🇸 ${choice.org} 입단!`, lines: news });
   } else if (choice.key === "fa" && option.offer && option.offer.mega) {
     const o = option.offer;
-    list.push({ tone: "gold", kicker: "초대형 계약", title: `💰 ${o.team} ${o.years}년 ${fmtMoney(o.total)}!`, lines: [`연봉 ${fmtMoney(o.salary)} × ${o.years}년`, ...news] });
+    list.push({
+      tone: "gold",
+      kicker: "초대형 계약",
+      title: `💰 ${o.team} ${o.years}년 ${fmtMoney(o.total)}!`,
+      lines: [`연봉 ${fmtMoney(o.salary)} × ${o.years}년`, ...news],
+    });
   } else if (choice.key === "fa" && option.offer && option.offer.veteran) {
     const o = option.offer;
-    list.push({ tone: "gold", kicker: `${koreanAge(player.age)}세의 해외 도전`, title: `${o.league === "MLB" ? "🇺🇸" : "🇯🇵"} ${o.team} 입단!`, lines: [`${LEAGUES[o.league].name} ${o.years === 2 ? "1+1년" : "1년"} 계약`, ...news] });
+    list.push({
+      tone: "gold",
+      kicker: `${koreanAge(player.age)}세의 해외 도전`,
+      title: `${o.league === "MLB" ? "🇺🇸" : "🇯🇵"} ${o.team} 입단!`,
+      lines: [`${LEAGUES[o.league].name} ${o.years === 2 ? "1+1년" : "1년"} 계약`, ...news],
+    });
   } else if (choice.key === "collegePick") {
     list.push({ tone: "good", kicker: "대학 진학", title: `🎓 ${option.id} 입학!`, lines: news });
   } else if (choice.key === "national" && option.id === "nretire") {
@@ -965,11 +1130,14 @@ function nextBigMoment() {
     return;
   }
   const m = bigQueue.shift();
-  if (!m) { modal.hidden = true; return; }
+  if (!m) {
+    modal.hidden = true;
+    return;
+  }
   const pbp = m.pbp && m.pbp.length ? m.pbp : null;
   // 중계 중엔 테두리 색으로 결과가 새지 않게 중립색
   modal.dataset.tone = m.tone || "gold";
-  modal.className = pbp ? "pbp-mode playing" : m.tone || "gold";
+  modal.className = (pbp ? "pbp-mode playing" : m.tone || "gold") + (m.cls ? ` ${m.cls}` : ""); // 세레머니 크기 (ceremony.js)
   const late = pbp ? `animation-delay:${(pbp.length * PBP_STEP).toFixed(1)}s` : "";
   modal.querySelector(".big-kicker").textContent = m.kicker || "";
   const title = modal.querySelector(".big-title");
@@ -979,18 +1147,24 @@ function nextBigMoment() {
   let body = "";
   if (pbp) body += `<div class="pbp">${pbp.map((l, i) => `<p style="animation-delay:${(i * PBP_STEP).toFixed(1)}s">${l}</p>`).join("")}</div>`;
   let after = "";
+  if (m.html) body += m.html; // 카운트업·꽃가루 (ceremony.js)
+  if (m.box) after += boxScoreHtml(m.box);
   if (m.awards && m.awards.length) after += `<p class="big-awards">${m.awards.map((a) => awardChip(a)).join("")}</p>`;
   if (m.lines && m.lines.length) after += m.lines.map((l) => `<p>${l}</p>`).join("");
   body += pbp ? `<div class="late" style="${late}">${after}</div>` : after;
   modal.querySelector(".big-body").innerHTML = body;
   $("big-close").textContent = pbp ? "결과 바로 보기" : "확인";
   if (pbp) {
-    pbpTimer = setTimeout(() => {
-      modal.className = `${modal.dataset.tone} pbp-mode`;
-      $("big-close").textContent = "확인";
-    }, pbp.length * PBP_STEP * 1000 + 400);
+    pbpTimer = setTimeout(
+      () => {
+        modal.className = `${modal.dataset.tone} pbp-mode`;
+        $("big-close").textContent = "확인";
+      },
+      pbp.length * PBP_STEP * 1000 + 400,
+    );
   }
   modal.hidden = false;
+  runCountUps(modal); // 숫자 올라가는 연출 (effects.js)
 }
 
 $("big-close").addEventListener("click", () => {
@@ -1007,9 +1181,15 @@ function scoutHtml(player) {
   const o = draftOutlook(player);
   if (!o) return "";
   const gap = o.score - o.line;
-  const verdict = o.round ? `<b class="good">지명권 · 예상 ${o.round}라운드</b>` : `<b class="bad">지명 기준까지 ${-gap}점</b>`;
+  let verdict = o.round ? `<b class="good">지명권 · 예상 ${o.round}라운드</b>` : `<b class="bad">지명 기준까지 ${-gap}점</b>`;
+  let scoreText = `<b>${o.score}</b>`;
+  const fog = fogDraft(player, o); // 아마추어는 범위로만 (saber.js)
+  if (fog) {
+    scoreText = `<b>${fog.lo}~${fog.hi}</b>`;
+    verdict = fog.lo >= o.line ? `<b class="good">지명권 유력</b>` : fog.hi < o.line ? `<b class="bad">지명 기준 미달</b>` : `<b>지명 경계선</b>`;
+  }
   return `<div class="scout"><h4>🔍 스카우트 평가 <small>(지난 시즌 기준)</small></h4>
-    <p>드래프트 점수 <b>${o.score}</b> / 지명 기준 ${o.line} · ${verdict}${o.mlb ? ' · <b class="gold">MLB 스카우트 관심</b>' : ""}</p>
+    <p>드래프트 점수 ${scoreText} / 지명 기준 ${o.line} · ${verdict}${o.mlb ? ' · <b class="gold">MLB 스카우트 관심</b>' : ""}</p>
     <p class="small">점수 = OVR + ${player.league === "HS" ? "학교 수준 + 전국대회 성적 + " : "대학 검증 +3 + 대학 대회 성적 + "}시즌 WAR. OVR ${o.sure} 이상이면 점수와 상관없이 지명돼요. 확률이 아니라 이 기준으로 정해져요.</p></div>`;
 }
 
@@ -1023,7 +1203,10 @@ const PS_NAMES = {
 function postseasonHtml(report) {
   const names = PS_NAMES[report.league] || {};
   return `<h4>포스트시즌</h4><p class="chips">${report.postseason
-    .map((g) => `<span class="${g.won && !g.pending ? "top" : ""}">${names[g.round] || g.round + "라운드"} ${g.pending ? "⚡ 결정적 순간!" : g.won ? "승리" : "탈락"}</span>`)
+    .map(
+      (g) =>
+        `<span class="${g.won && !g.pending ? "top" : ""}">${names[g.round] || g.round + "라운드"} ${g.pending ? "⚡ 결정적 순간!" : g.won ? "승리" : "탈락"}</span>`,
+    )
     .join("")}</p>${psStatHtml(report)}`;
 }
 
@@ -1035,7 +1218,8 @@ function racesHtml(report) {
     html += `<tr><td>${r.award}</td><td>${fmt(r, r.mine)}</td><td>${fmt(r, r.need)}</td><td class="${r.won ? "won" : "lost"}">${r.won ? "수상" : "-"}</td></tr>`;
   }
   html += "</table>";
-  if (report.impact !== undefined) html += `<p class="small">MVP 점수 = WAR + 타이틀 + 굵직한 기록(40-40, 3관왕) + 팀 성적 + 인기. 올스타 = WAR + 인기 + 팬 투표(구단 팬덤 + 팀 성적${report.fanVote !== undefined ? `, 올해 ${report.fanVote >= 0 ? "+" : ""}${report.fanVote}` : ""}). 골든글러브는 포지션별 WAR, 실버슬러거는 OPS, 수비상은 수비 능력치로 봐요.</p>`;
+  if (report.impact !== undefined)
+    html += `<p class="small">MVP 점수 = WAR + 타이틀 + 굵직한 기록(40-40, 3관왕) + 팀 성적 + 인기. 올스타 = WAR + 인기 + 팬 투표(구단 팬덤 + 팀 성적${report.fanVote !== undefined ? `, 올해 ${report.fanVote >= 0 ? "+" : ""}${report.fanVote}` : ""}). 골든글러브는 포지션별 WAR, 실버슬러거는 OPS, 수비상은 수비 능력치로 봐요.</p>`;
   return html;
 }
 
@@ -1075,7 +1259,11 @@ $("ranking").addEventListener("click", (event) => {
   const r = loadRanking()[Number(row.dataset.rank)];
   const box = $("ranking-detail");
   if (!r) return;
-  if (box.dataset.open === row.dataset.rank) { box.innerHTML = ""; box.dataset.open = ""; return; } // 한 번 더 누르면 닫기
+  if (box.dataset.open === row.dataset.rank) {
+    box.innerHTML = "";
+    box.dataset.open = "";
+    return;
+  } // 한 번 더 누르면 닫기
   box.dataset.open = row.dataset.rank;
   if (!r.history) {
     box.innerHTML = `<p class="small">${r.name}: 예전 버전에서 은퇴한 선수라 시즌별 기록이 없어요.</p>`;

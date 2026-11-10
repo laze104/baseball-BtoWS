@@ -8,6 +8,7 @@ function fillText(template, player, extra) {
     name: player.name,
     team: player.team,
     school: player.school,
+    num: player.number, // 등번호 (fanfare.js)
     league: LEAGUES[player.league] ? LEAGUES[player.league].name : "",
     tt: typeof teamTilde === "function" ? teamTilde((extra && extra.team) || player.team) : "", // 삼~성 식 (news.js)
     ...extra,
@@ -19,7 +20,18 @@ function fillText(template, player, extra) {
   });
 }
 
-const JOSA_PAIRS = { 은: ["은", "는"], 는: ["은", "는"], 이: ["이", "가"], 가: ["이", "가"], 을: ["을", "를"], 를: ["을", "를"], 과: ["과", "와"], 와: ["과", "와"], 이랑: ["이랑", "랑"], 으로: ["으로", "로"] };
+const JOSA_PAIRS = {
+  은: ["은", "는"],
+  는: ["은", "는"],
+  이: ["이", "가"],
+  가: ["이", "가"],
+  을: ["을", "를"],
+  를: ["을", "를"],
+  과: ["과", "와"],
+  와: ["과", "와"],
+  이랑: ["이랑", "랑"],
+  으로: ["으로", "로"],
+};
 function josaOf(word, j) {
   const pair = JOSA_PAIRS[j];
   if (!pair) return j;
@@ -44,11 +56,15 @@ function seasonGrade(report, side) {
 function recordValues(report) {
   const v = {};
   if (report.bat) {
-    v.HR = report.bat.HR; v.RBI = report.bat.RBI;
-    v.AVG = fmtRate(report.bat.AVG); v.OPS = fmtRate(report.bat.OPS);
+    v.HR = report.bat.HR;
+    v.RBI = report.bat.RBI;
+    v.AVG = fmtRate(report.bat.AVG);
+    v.OPS = fmtRate(report.bat.OPS);
   }
   if (report.pit) {
-    v.ERA = report.pit.ERA.toFixed(2); v.K = report.pit.K; v.W = report.pit.W;
+    v.ERA = report.pit.ERA.toFixed(2);
+    v.K = report.pit.K;
+    v.W = report.pit.W;
   }
   v.WAR = report.WAR;
   return v;
@@ -71,11 +87,6 @@ function makeComment(text, player, extra, mood) {
     dislikes: randomInt(0, 15),
     time: `${hour}:${minute}`,
   };
-}
-
-// 리스트에서 겹치지 않게 n개 뽑기
-function pickMany(list, n) {
-  return [...list].sort(() => Math.random() - 0.5).slice(0, n);
 }
 
 function buildFeed(player, report) {
@@ -118,7 +129,7 @@ function buildFeed(player, report) {
   if (grade === "bad") texts = pickMany(side === "bat" ? FAN.batterBad : FAN.pitcherBad, randomInt(6, 8));
   else texts = pickMany(FAN[grade], randomInt(6, 8));
   if (grade === "great") texts.push(...pickMany(FAN.good, 2)); // 칭찬 속에 담백한 반응도
-  if (grade === "bad") texts.push(...pickMany(FAN.good, 1));   // 쉴드 치는 팬도 한 명
+  if (grade === "bad") texts.push(...pickMany(FAN.good, 1)); // 쉴드 치는 팬도 한 명
 
   const keys = report.specials.map((s) => s.key);
   const add = (pool, n) => texts.push(...pickMany(pool, n));
@@ -127,7 +138,12 @@ function buildFeed(player, report) {
   if (keys.includes("callup")) add(FAN.callup, 2);
   if (keys.includes("injury")) add(FAN.injury, 2);
   if (keys.includes("twowayAwaken")) add(FAN.twoway, 2);
-  if (keys.includes("medal")) add(FAN.medal, 2);
+  if (keys.includes("medal")) {
+    const top = report.national && ["금메달", "우승"].includes(report.national.result);
+    add(top ? FAN.medal : FAN.medalSmall, 2);
+    if (report.national && report.national.name === "WBC" && top) add(FAN.wbcWin, 2);
+  }
+  if (keys.includes("nationalFail")) add(report.national && report.national.result === "1라운드 탈락" ? FAN.wbcFail : FAN.nationalFail, 2);
   if (keys.includes("nationalCall")) add(FAN.national, 2);
   if (keys.includes("exempt")) add(FAN.exempt, 2);
   if (keys.includes("discharge")) add(FAN.military, 1);
@@ -138,7 +154,7 @@ function buildFeed(player, report) {
   if (keys.includes("mlbCallup")) add(FAN.mlbCall, 3);
   if (keys.includes("mlbScout")) add(FAN.mlbDirect, 2);
   if (report.awards.includes("올스타")) add(FAN.allstar, 1);
-  // v15: 진짜 커뮤처럼 숫자 언급, 짧은 드립, 키배, 팀 얘기
+  // 진짜 커뮤처럼 숫자 언급, 짧은 드립, 키배, 팀 얘기
   if (TOP_LEAGUES.includes(report.league)) {
     if (grade === "bad") add(side === "bat" ? FAN.statBatBad : FAN.statPitBad, 1);
     else add(side === "bat" ? FAN.statBat : FAN.statPit, 1);
@@ -158,11 +174,12 @@ function buildFeed(player, report) {
   const draftInfo = report.specials.find((s) => s.round);
   const extra = {
     ...values,
-    round: draftInfo ? draftInfo.round : "", team: report.team,
-    nick: player.nickname || "", rival: report.rival ? report.rival.name : "",
+    round: draftInfo ? draftInfo.round : "",
+    team: report.team,
+    nick: player.nickname || "",
+    rival: report.rival ? report.rival.name : "",
   };
-  const comments = texts.map((t) => makeComment(t, player, extra, grade === "bad" ? "hot" : "normal"));
-  comments.sort(() => Math.random() - 0.5);
+  const comments = shuffle(texts.map((t) => makeComment(t, player, extra, grade === "bad" ? "hot" : "normal")));
   addReplies(comments, player, extra);
 
   report.news = news;
@@ -189,6 +206,13 @@ function addReplies(comments, player, extra) {
       const r = makeComment(t, player, extra, "normal");
       return { nick: r.nick, ip: r.ip, text: r.text, time: r.time };
     });
-    if (Math.random() < 0.12) c.replies.push({ nick: "ㅇㅇ", ip: `${randomInt(1, 223)}.${randomInt(1, 255)}`, text: pick(["ㄴ 내 말이 그 말", "ㄴ 글쓴이인데 이거 인정", "ㄴ 아니 내 글에서 싸우지 마라"]), time: c.time, op: true });
+    if (Math.random() < 0.12)
+      c.replies.push({
+        nick: "ㅇㅇ",
+        ip: `${randomInt(1, 223)}.${randomInt(1, 255)}`,
+        text: pick(["ㄴ 내 말이 그 말", "ㄴ 글쓴이인데 이거 인정", "ㄴ 아니 내 글에서 싸우지 마라"]),
+        time: c.time,
+        op: true,
+      });
   }
 }

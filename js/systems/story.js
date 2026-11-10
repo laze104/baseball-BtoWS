@@ -15,8 +15,8 @@ function countAward(player, pattern) {
 
 // 새 기사 제목들
 Object.assign(NEWS.special, {
-  enlist: "{name}, {unit} 입대… \"더 단단해져서 돌아오겠다\"",
-  discharge: "{name} 전역! {team} 복귀 \"이제 야구만 보고 달린다\"",
+  enlist: '{name}, {unit} 입대… "더 단단해져서 돌아오겠다"',
+  discharge: '{name} 전역! {team} 복귀 "이제 야구만 보고 달린다"',
   exempt: "{name}, {award}로 병역 특례… 야구 인생에 날개 달았다",
   abroadDefer: "{name}, 국외 체류 연장으로 입대 연기… 국내 복귀 전까지 병역 미뤄",
   service: "{name}, 사회복무요원으로 성실히 근무 중… 퇴근 후 개인 훈련",
@@ -62,7 +62,8 @@ function checkMilitary(player, report) {
 
   const options = [];
   const ovr = getOvrs(player).best;
-  if (PRO_LEAGUES.includes(player.league) && ovr >= LEAGUES.KBO.level - 8 && player.age <= 28) { // 상무는 지원 나이 제한이 있음
+  if (PRO_LEAGUES.includes(player.league) && ovr >= LEAGUES.KBO.level - 8 && player.age <= 28) {
+    // 상무는 지원 나이 제한이 있음
     options.push({ id: "SANGMU", label: "상무 입대", detail: "2년간 퓨처스리그에서 경기 출전 · 군 급여만 받아요" });
   }
   options.push({ id: "SOCIAL", label: "사회복무요원", detail: "2년간 경기 없음 · 퇴근 후 개인 훈련만 (능력치 하락 위험)" });
@@ -72,9 +73,11 @@ function checkMilitary(player, report) {
   pushChoice(player, {
     key: "military",
     text: mustGo
-      ? (player.abroadDefer
-        ? (abroad ? `${koreanAge(player.age)}세, 국외 체류 연기도 끝났어요. 이제는 입대해야 해요.` : `국내로 돌아와서 국외 체류 연기가 끝났어요. ${koreanAge(player.age)}세, 이제 입대해야 해요.`)
-        : `${koreanAge(player.age)}세, 더는 입대를 미룰 수 없어요. 어디로 갈까요?`)
+      ? player.abroadDefer
+        ? abroad
+          ? `${koreanAge(player.age)}세, 국외 체류 연기도 끝났어요. 이제는 입대해야 해요.`
+          : `국내로 돌아와서 국외 체류 연기가 끝났어요. ${koreanAge(player.age)}세, 이제 입대해야 해요.`
+        : `${koreanAge(player.age)}세, 더는 입대를 미룰 수 없어요. 어디로 갈까요?`
       : `${koreanAge(player.age)}세, 병역 문제를 정할 때가 됐어요. 지금 다녀올까요?`,
     options,
   });
@@ -121,8 +124,16 @@ function grantExemption(player, report, award) {
 // 사회복무 시즌: 경기는 없고 개인 훈련만
 function serviceSeason(player, focusKeys) {
   const report = {
-    age: player.age, year: gameYear(player), league: player.league, team: player.team,
-    events: ["사회복무"], specials: [{ key: "service" }], awards: [], bat: null, pit: null, WAR: 0,
+    age: player.age,
+    year: gameYear(player),
+    league: player.league,
+    team: player.team,
+    events: ["사회복무"],
+    specials: [{ key: "service" }],
+    awards: [],
+    bat: null,
+    pit: null,
+    WAR: 0,
   };
   player.nationalPlan = null;
   player.teamFocus = false;
@@ -145,8 +156,16 @@ function serviceSeason(player, focusKeys) {
   report.salary = payday(player);
   player.leagueSeasons[player.league] = (player.leagueSeasons[player.league] || 0) + 1;
   player.history.push({
-    season: player.season, age: player.age, year: report.year, league: player.league, team: player.team,
-    bat: null, pit: null, WAR: 0, awards: [], events: report.events.slice(),
+    season: player.season,
+    age: player.age,
+    year: report.year,
+    league: player.league,
+    team: player.team,
+    bat: null,
+    pit: null,
+    WAR: 0,
+    awards: [],
+    events: report.events.slice(),
   });
 
   player.age += 1;
@@ -254,28 +273,40 @@ function moveRival(player, r, report) {
   const ovr = getOvrs(r).best;
   const from = r.league;
   if (r.league === "HS" && r.age >= 19) {
-    if (ovr + randomInt(0, 8) >= 52) { r.league = "KBO2"; r.team = pick(TEAMS.KBO); }
-    else { r.league = "INDIE"; r.team = pick(TEAMS.INDIE); }
+    if (ovr + randomInt(0, 8) >= 52) {
+      r.league = "KBO2";
+      r.team = pick(TEAMS.KBO);
+    } else {
+      r.league = "INDIE";
+      r.team = pick(TEAMS.INDIE);
+    }
   } else if (r.league === "INDIE") {
-    if (ovr >= 50 && r.age <= 25) { r.league = "KBO2"; r.team = pick(TEAMS.KBO); }
+    if (ovr >= 50 && r.age <= 25) {
+      r.league = "KBO2";
+      r.team = pick(TEAMS.KBO);
+    }
   } else if (r.league === "KBO2") {
     if (ovr >= LEAGUES.KBO.level - 3) r.league = "KBO";
   } else if (r.league === "KBO") {
     if (ovr < LEAGUES.KBO.level - 10) r.league = "KBO2";
-    else if (r.age >= 27 && ovr >= 72 && Math.random() < 0.35) { r.league = "MLB"; r.team = pick(TEAMS.MLB); }
-    else if (r.age >= 27 && ovr >= 67 && Math.random() < 0.25) { r.league = "NPB"; r.team = pick(TEAMS.NPB); }
+    else if (r.age >= 27 && ovr >= 72 && Math.random() < 0.35) {
+      r.league = "MLB";
+      r.team = pick(TEAMS.MLB);
+    } else if (r.age >= 27 && ovr >= 67 && Math.random() < 0.25) {
+      r.league = "NPB";
+      r.team = pick(TEAMS.NPB);
+    }
   } else if (r.league === "NPB" || r.league === "MLB") {
-    if (ovr < LEAGUES[r.league].level - 10) { r.league = "KBO"; r.team = pick(TEAMS.KBO); }
+    if (ovr < LEAGUES[r.league].level - 10) {
+      r.league = "KBO";
+      r.team = pick(TEAMS.KBO);
+    }
   }
   if (r.league !== from && (r.league === "MLB" || r.league === "NPB" || (from === "HS" && r.league === "KBO2"))) {
     report.specials.push({ key: "rivalMove", rival: r.name, rivalTeam: r.team });
   }
 
-  const mustRetire =
-    r.age >= 41 ||
-    (r.age >= 37 && ovr < 55) ||
-    (r.age >= 30 && ovr < 42) ||
-    (r.league === "INDIE" && r.age >= 27);
+  const mustRetire = r.age >= 41 || (r.age >= 37 && ovr < 55) || (r.age >= 30 && ovr < 42) || (r.league === "INDIE" && r.age >= 27);
   if (mustRetire) {
     r.retired = true;
     report.specials.push({ key: "rivalRetire", rival: r.name });
@@ -286,7 +317,10 @@ function moveRival(player, r, report) {
 function rivalSummary(r) {
   const pro = r.history.filter((h) => h.league !== "HS");
   return {
-    WAR: round(pro.reduce((s, h) => s + h.WAR, 0), 1),
+    WAR: round(
+      pro.reduce((s, h) => s + h.WAR, 0),
+      1,
+    ),
     MVP: countAward(r, "MVP"),
     champs: countAward(r, "시리즈 우승"),
   };
@@ -376,7 +410,8 @@ function maybeLifeEvent(player, report) {
       if (o.money) hints.push(`수입 ${fmtMoney(o.money * idx)}`);
       if (o.cost) hints.push(`비용 ${fmtMoney(o.cost * idx)}`);
       if (o.stats) {
-        const parts = Object.entries(o.stats).filter(([k]) => player.stats[k] !== undefined)
+        const parts = Object.entries(o.stats)
+          .filter(([k]) => player.stats[k] !== undefined)
           .map(([k, v]) => `${BATTER_STATS[k] || PITCHER_STATS[k]} ${v > 0 ? "+" : ""}${v}`);
         if (parts.length) hints.push(parts.join(", "));
       }
@@ -408,7 +443,10 @@ function resolveLifeChoice(player, choice, option) {
   }
   if (option.nextMod) player.nextMod = (player.nextMod || 0) + option.nextMod;
   if (option.flag === "dating") player.dating = true;
-  if (option.flag === "married") { player.married = true; player.dating = false; }
+  if (option.flag === "married") {
+    player.married = true;
+    player.dating = false;
+  }
   if (option.news) news.push(fillText(option.news, player, { rival: player.rival ? player.rival.name : "" }));
   news.push(`팬 여론 ${fame >= 0 ? "+" : ""}${fame} → ${player.fame} (${fameLabel(player.fame)})`);
   return news;
@@ -449,7 +487,7 @@ Object.assign(NEWS.special, {
   franchise: "{name}, 이제는 {team}의 얼굴… 명실상부 프랜차이즈 스타",
   franchiseLeave: "{team}의 심장이 떠났다… 프랜차이즈 스타 {name} 이적 충격",
   homecoming: "돌아온 프랜차이즈 스타! {name}, 친정 {team} 복귀",
-  retiredNumber: "{team}, {name}의 등번호 영구결번 결정",
+  retiredNumber: "{team}, {name}의 등번호 {num}번 영구결번 결정",
   position: "{name}, {from}에서 {to}(으)로 포지션 변경",
 });
 
@@ -564,7 +602,10 @@ function maybePositionOffer(player, report) {
   if (player.type === "batter") {
     const glove = (player.stats.defense + player.stats.arm) / 2;
     if (player.position !== DH && player.age >= 32 && (glove < 55 || Math.random() < 0.35)) {
-      offer = { to: DH, text: `${koreanAge(player.age)}세, 수비 범위가 예전 같지 않아요. 감독이 지명타자 전향을 제안해요. (지명타자는 수비 능력치가 OVR에서 빠지지만 WAR 보정이 낮아요)` };
+      offer = {
+        to: DH,
+        text: `${koreanAge(player.age)}세, 수비 범위가 예전 같지 않아요. 감독이 지명타자 전향을 제안해요. (지명타자는 수비 능력치가 OVR에서 빠지지만 WAR 보정이 낮아요)`,
+      };
     } else if (player.position !== DH && Math.random() < 0.08) {
       const choices = POSITIONS.batter.filter((p) => p !== player.position && !(HARD_POSITIONS.includes(p) && player.stats.defense < 55));
       const to = pick(choices);
@@ -599,7 +640,10 @@ function resolvePositionChoice(player, choice, option) {
     return [`${player.name}, 포지션 변경 제안 고사 "지금 자리에서 증명하겠다"`];
   }
   const line = changePosition(player, choice.to, choice.byTeam);
-  if (choice.byTeam) { changeFame(player, 5); player.nextMod = (player.nextMod || 0) + 1; }
+  if (choice.byTeam) {
+    changeFame(player, 5);
+    player.nextMod = (player.nextMod || 0) + 1;
+  }
   // 이번 비시즌에 또 바꿀 수 있도록 (제안은 별개)
   player.positionChangedAt = null;
   return [line];
@@ -618,55 +662,68 @@ for (const ev of LIFE_EVENTS) if (ev.id.startsWith("interview")) ev.interview = 
 
 LIFE_EVENTS.push(
   {
-    id: "mediaDay", interview: true, when: (p) => !isAmateur(p.league) && !isServing(p),
+    id: "mediaDay",
+    interview: true,
+    when: (p) => !isAmateur(p.league) && !isServing(p),
     text: "시즌 개막 미디어데이. 기자가 올 시즌 목표를 물어요.",
     options: [
-      { id: "a", label: "\"개인 기록보다 팀 우승이 먼저입니다\"", fame: 5, news: "{name} \"개인 기록보다 팀\"… 미디어데이 모범 답안", mood: "good" },
-      { id: "b", label: "\"올해 MVP는 제 겁니다\"", fame: -3, nextMod: 1, news: "{name}, 미디어데이 MVP 선언… 자신감인가 허세인가", mood: "bad" },
-      { id: "c", label: "\"다치지 않고 풀시즌 뛰는 게 목표예요\"", fame: 2, news: "{name} \"목표는 풀타임\" 담담한 각오", mood: "good" },
+      { id: "a", label: '"개인 기록보다 팀 우승이 먼저입니다"', fame: 5, news: '{name} "개인 기록보다 팀"… 미디어데이 모범 답안', mood: "good" },
+      { id: "b", label: '"올해 MVP는 제 겁니다"', fame: -3, nextMod: 1, news: "{name}, 미디어데이 MVP 선언… 자신감인가 허세인가", mood: "bad" },
+      { id: "c", label: '"다치지 않고 풀시즌 뛰는 게 목표예요"', fame: 2, news: '{name} "목표는 풀타임" 담담한 각오', mood: "good" },
     ],
   },
   {
-    id: "rivalQ", interview: true, when: (p) => p.rival && !p.rival.retired && !isAmateur(p.league),
+    id: "rivalQ",
+    interview: true,
+    when: (p) => p.rival && !p.rival.retired && !isAmateur(p.league),
     text: "기자가 동갑내기 라이벌 {rival}에 대해 물어요.",
     options: [
-      { id: "a", label: "\"정말 존경하는 선수예요\"", fame: 5, news: "{name} \"{rival|은} 존경하는 친구\"… 훈훈한 라이벌", mood: "good" },
-      { id: "b", label: "\"솔직히 제가 한 수 위죠\"", fame: "random", nextMod: 1, news: "{name}, 라이벌 {rival} 공개 도발 \"내가 한 수 위\"", mood: "bad" },
-      { id: "c", label: "\"남 신경 쓸 시간 없어요\"", fame: 0, news: "{name} \"라이벌? 신경 안 쓴다\"", mood: "good" },
+      { id: "a", label: '"정말 존경하는 선수예요"', fame: 5, news: '{name} "{rival|은} 존경하는 친구"… 훈훈한 라이벌', mood: "good" },
+      { id: "b", label: '"솔직히 제가 한 수 위죠"', fame: "random", nextMod: 1, news: '{name}, 라이벌 {rival} 공개 도발 "내가 한 수 위"', mood: "bad" },
+      { id: "c", label: '"남 신경 쓸 시간 없어요"', fame: 0, news: '{name} "라이벌? 신경 안 쓴다"', mood: "good" },
     ],
   },
   {
-    id: "faQ", interview: true,
-    when: (p) => p.league === "KBO" && ((p.contract && p.contract.isFA && p.contract.years === 1) || (p.contract && !p.contract.isFA && (p.kboService || 0) === kboFaNeeded(p) - 1)),
-    text: "FA를 1년 앞두고 기자가 묻습니다. \"내년 거취는요?\"",
+    id: "faQ",
+    interview: true,
+    when: (p) =>
+      p.league === "KBO" &&
+      ((p.contract && p.contract.isFA && p.contract.years === 1) || (p.contract && !p.contract.isFA && (p.kboService || 0) === kboFaNeeded(p) - 1)),
+    text: 'FA를 1년 앞두고 기자가 묻습니다. "내년 거취는요?"',
     options: [
-      { id: "a", label: "\"이 팀에서 끝까지 뛰고 싶어요\"", fame: 8, news: "{name} \"{team}에서 은퇴하고 싶다\"… 팬심 저격", mood: "good" },
-      { id: "b", label: "\"모든 가능성을 열어두겠습니다\"", fame: -4, news: "{name} \"모든 가능성 열어둔다\"… 이적 시사?", mood: "bad" },
-      { id: "c", label: "\"해외 도전도 생각하고 있어요\"", fame: 2, news: "{name}, 해외 진출 의지 공개", mood: "good" },
+      { id: "a", label: '"이 팀에서 끝까지 뛰고 싶어요"', fame: 8, news: '{name} "{team}에서 은퇴하고 싶다"… 팬심 저격', mood: "good" },
+      { id: "b", label: '"모든 가능성을 열어두겠습니다"', fame: -4, news: '{name} "모든 가능성 열어둔다"… 이적 시사?', mood: "bad" },
+      { id: "c", label: '"해외 도전도 생각하고 있어요"', fame: 2, news: "{name}, 해외 진출 의지 공개", mood: "good" },
     ],
   },
   {
-    id: "nationalQ", interview: true, when: (p, r) => !!r.national,
+    id: "nationalQ",
+    interview: true,
+    when: (p, r) => !!r.national,
     text: "{event}를 마치고 돌아온 공항 인터뷰.",
     options: [
-      { id: "a", label: "\"태극마크는 언제나 영광입니다\"", fame: 6, news: "{name} \"태극마크는 영광\"… 귀국 소감", mood: "good" },
-      { id: "b", label: "\"솔직히 많이 피곤하네요\"", fame: -4, news: "{name} \"대표팀 피곤했다\" 솔직 발언 논란", mood: "bad" },
+      { id: "a", label: '"태극마크는 언제나 영광입니다"', fame: 6, news: '{name} "태극마크는 영광"… 귀국 소감', mood: "good" },
+      { id: "b", label: '"솔직히 많이 피곤하네요"', fame: -4, news: '{name} "대표팀 피곤했다" 솔직 발언 논란', mood: "bad" },
     ],
   },
   {
-    id: "veteranQ", interview: true, when: (p) => p.age >= 34 && !isAmateur(p.league),
+    id: "veteranQ",
+    interview: true,
+    when: (p) => p.age >= 34 && !isAmateur(p.league),
     text: "베테랑이 된 당신에게 기자가 은퇴 시점을 물어요.",
     options: [
-      { id: "a", label: "\"몸이 허락하는 한 계속 뜁니다\"", fame: 3, mental: 1, news: "{name} \"몸이 허락하는 한 현역\"", mood: "good" },
-      { id: "b", label: "\"후배들에게 길을 열어줄 때가 오겠죠\"", fame: 6, news: "{name} \"후배들 위해 물러날 때도 생각\"… 품격 있는 베테랑", mood: "good" },
+      { id: "a", label: '"몸이 허락하는 한 계속 뜁니다"', fame: 3, mental: 1, news: '{name} "몸이 허락하는 한 현역"', mood: "good" },
+      { id: "b", label: '"후배들에게 길을 열어줄 때가 오겠죠"', fame: 6, news: '{name} "후배들 위해 물러날 때도 생각"… 품격 있는 베테랑', mood: "good" },
     ],
   },
   {
-    id: "hsQ", interview: true, when: (p, r) => p.league === "HS" && r.grade === "great",
+    id: "hsQ",
+    interview: true,
+    when: (p, r) => p.league === "HS" && r.grade === "great",
     text: "고교 유망주로 주목받으며 첫 언론 인터뷰를 해요. 롤모델을 묻네요.",
     options: [
-      { id: "a", label: "\"우리 학교 선배님들이요\"", fame: 4, news: "{school} {name} \"선배님들처럼 되고 싶다\"", mood: "good" },
-      { id: "b", label: "\"메이저리그 슈퍼스타요!\"", fame: 2, news: "고교 유망주 {name} \"꿈은 메이저리그\"", mood: "good" },
+      { id: "a", label: '"우리 학교 선배님들이요"', fame: 4, news: '{school} {name} "선배님들처럼 되고 싶다"', mood: "good" },
+      { id: "b", label: '"메이저리그 슈퍼스타요!"', fame: 2, news: '고교 유망주 {name} "꿈은 메이저리그"', mood: "good" },
     ],
   },
 );
@@ -677,11 +734,6 @@ LIFE_EVENTS.push(
 Object.assign(NEWS.special, {
   postingFail: "{name}, {league} 포스팅 무응찰… {team} 잔류",
   postingWin: "{name}, 포스팅 성공! {team|과} {years}년 총액 {total} 계약",
-  scouts: "MLB·NPB 스카우트들, {name} 보러 줄줄이 방한",
-});
-Object.assign(FAN, {
-  posting: ["가서 꼭 성공해라", "그동안 고마웠다 ㅠㅠ", "솔직히 거기선 안 통할 듯", "해외에서도 응원한다"],
-  postingFail: ["아쉽지만 내년에 다시 가자", "오히려 좋아 우리 팀에 남는다", "현실의 벽이 높네"],
 });
 
 function chanceLabel(p) {
@@ -701,7 +753,6 @@ function pushChoiceFirst(player, choice) {
 // 9. 고교 전국대회 (매년 5개 대회)
 // =============================================
 const HS_TOURNAMENTS = ["이마트배", "황금사자기", "청룡기", "대통령배", "봉황대기"];
-const HS_ROUNDS = ["1회전 탈락", "2회전 탈락", "16강", "8강", "4강"];
 
 // 우리 팀 전력: 학교 수준 + 내 실력 + 내 활약 (0.5 = 평균적인 팀)
 function amateurStrength(player, report, level) {
@@ -739,8 +790,15 @@ function weekendLeague(player, strength, half) {
   const rec = Object.fromEntries(schools.map((n) => [n, { w: 0, l: 0 }]));
   for (let i = 0; i < schools.length; i++) {
     for (let j = i + 1; j < schools.length; j++) {
-      const a = schools[i], b = schools[j];
-      if (Math.random() < clamp(0.5 + (p[a] - p[b]) * 2, 0.1, 0.9)) { rec[a].w++; rec[b].l++; } else { rec[b].w++; rec[a].l++; }
+      const a = schools[i],
+        b = schools[j];
+      if (Math.random() < clamp(0.5 + (p[a] - p[b]) * 2, 0.1, 0.9)) {
+        rec[a].w++;
+        rec[b].l++;
+      } else {
+        rec[b].w++;
+        rec[a].l++;
+      }
     }
   }
   const order = [...schools].sort((a, b) => rec[b].w - rec[a].w || p[b] - p[a]);
@@ -901,19 +959,45 @@ function maybeClutch(player, report) {
     } else if (side === "bat" && Math.random() < clamp((gap - 4) * 0.002, 0, 0.02)) {
       situation = "사이클링 히트까지 3루타 하나! 마지막 타석이에요.";
     } else {
-      situation = side === "bat"
-        ? pick(["9회말 2사 1·2루, 한 점 차로 지고 있어요.", "연장 11회말 무사 3루, 끝내기 찬스예요.", "8회말 1사 만루, 동점 주자가 3루에 있어요.", "순위 싸움 맞대결, 0-0 9회말 선두 타자예요."])
-        : pick(["1점 차 9회 2사 만루, 풀카운트예요.", "순위 싸움 맞대결, 8회 무사 2·3루 위기예요.", "7회까지 1실점 호투, 8회 1사 1·3루 위기예요.", "연장 10회 2사 2루, 상대 중심 타선이에요."]);
+      situation =
+        side === "bat"
+          ? pick([
+              "9회말 2사 1·2루, 한 점 차로 지고 있어요.",
+              "연장 11회말 무사 3루, 끝내기 찬스예요.",
+              "8회말 1사 만루, 동점 주자가 3루에 있어요.",
+              "순위 싸움 맞대결, 0-0 9회말 선두 타자예요.",
+            ])
+          : pick([
+              "1점 차 9회 2사 만루, 풀카운트예요.",
+              "순위 싸움 맞대결, 8회 무사 2·3루 위기예요.",
+              "7회까지 1실점 호투, 8회 1사 1·3루 위기예요.",
+              "연장 10회 2사 2루, 상대 중심 타선이에요.",
+            ]);
     }
   } else {
     const head = moment.note ? `${moment.note}. ` : "";
-    situation = head + (side === "bat"
-      ? pick(["9회말 2사 2·3루, 한 점 차로 지고 있어요. 타석에 당신이 섭니다.", "8회초 1사 만루, 동점 상황이에요.", "연장 10회말 1사 2루, 끝내기 찬스예요.", "7회 2사 1·3루, 상대 에이스가 내려가고 필승조가 올라왔어요.", "0-0으로 맞선 9회초, 선두 타자로 나섭니다."])
-      : pick(["9회 2사 만루, 한 점 차 리드. 마운드에 당신이 섭니다.", "8회 무사 1·2루, 두 점 차 리드에서 등판해요.", "연장 11회 1사 3루, 상대 중심 타선이에요.", "6회 1사 2·3루, 선발이 무너지고 급히 올라왔어요.", "9회 선두 타자 볼넷, 한 점 차 리드예요."]));
+    situation =
+      head +
+      (side === "bat"
+        ? pick([
+            "9회말 2사 2·3루, 한 점 차로 지고 있어요. 타석에 당신이 섭니다.",
+            "8회초 1사 만루, 동점 상황이에요.",
+            "연장 10회말 1사 2루, 끝내기 찬스예요.",
+            "7회 2사 1·3루, 상대 에이스가 내려가고 필승조가 올라왔어요.",
+            "0-0으로 맞선 9회초, 선두 타자로 나섭니다.",
+          ])
+        : pick([
+            "9회 2사 만루, 한 점 차 리드. 마운드에 당신이 섭니다.",
+            "8회 무사 1·2루, 두 점 차 리드에서 등판해요.",
+            "연장 11회 1사 3루, 상대 중심 타선이에요.",
+            "6회 1사 2·3루, 선발이 무너지고 급히 올라왔어요.",
+            "9회 선두 타자 볼넷, 한 점 차 리드예요.",
+          ]));
   }
   const opts = CLUTCH_OPTIONS[side].filter((o) => player.stats[o.stat] !== undefined);
   pushChoiceFirst(player, {
     key: "clutch",
+    tend: pickTend(side, opts), // 상대 성향 (boxscore.js 수싸움)
     kind: moment.kind,
     stage: moment.stage,
     side,
@@ -921,7 +1005,8 @@ function maybeClutch(player, report) {
     situation,
     text: `⚡ 결정적 순간! [${moment.stage}] ${situation} 어떻게 할까요?`,
     options: opts.map((o) => ({
-      id: o.id, label: o.label,
+      id: o.id,
+      label: o.label,
       detail: `${o.big ? "성공하면 대박, 실패하면 역적 · " : ""}성공 가능성 ${chanceLabel(clutchChance(player, side, o, level))}`,
     })),
   });
@@ -934,12 +1019,17 @@ function pendingFinal(r) {
 
 function resolveClutch(player, choice, option) {
   const opt = CLUTCH_OPTIONS[choice.side].find((o) => o.id === option.id);
-  const success = Math.random() < clutchChance(player, choice.side, opt, choice.level);
+  // 기본은 능력치, 상대 성향 읽으면 보너스 (boxscore.js)
+  // 숨긴 부상 안고 뛰면 -10%p (dilemma.js)
+  const success = Math.random() < clutchChance(player, choice.side, opt, choice.level) + tendBonus(choice, option.id) - (choice.pain ? 0.1 : 0);
   player.lastClutch = success;
   // 포스트시즌 마지막 시리즈 결과 확정
   const lr = player.lastReport;
   const lastPs = lr && lr.postseason ? lr.postseason[lr.postseason.length - 1] : null;
-  if (lastPs && lastPs.pending) { lastPs.pending = false; lastPs.won = success; }
+  if (lastPs && lastPs.pending) {
+    lastPs.pending = false;
+    lastPs.won = success;
+  }
   const news = [];
   const nerve = choice.side === "bat" ? "clutch" : "mental";
   const r = player.lastReport;
@@ -947,9 +1037,14 @@ function resolveClutch(player, choice, option) {
   if (success) {
     changeFame(player, opt.big ? 10 : 6);
     if (player.stats[nerve] !== undefined) player.stats[nerve] = clamp(player.stats[nerve] + 1, 1, 99);
-    const hero = choice.side === "bat"
-      ? (opt.big ? `${player.name}, ${choice.stage} 끝내기 홈런! 경기장이 뒤집혔다` : `${player.name}, ${choice.stage} 결승타! 해결사 본능`)
-      : (opt.big ? `${player.name}, ${choice.stage} 삼구삼진으로 경기 끝! 포효` : `${player.name}, ${choice.stage} 위기 탈출… 마운드의 수호신`);
+    const hero =
+      choice.side === "bat"
+        ? opt.big
+          ? `${player.name}, ${choice.stage} 끝내기 홈런! 경기장이 뒤집혔다`
+          : `${player.name}, ${choice.stage} 결승타! 해결사 본능`
+        : opt.big
+          ? `${player.name}, ${choice.stage} 삼구삼진으로 경기 끝! 포효`
+          : `${player.name}, ${choice.stage} 위기 탈출… 마운드의 수호신`;
     if (choice.situation.includes("사이클링")) news.push(`${player.name}, 마지막 타석 3루타! 사이클링 히트 완성`);
     else if (choice.situation.includes("노히트노런")) news.push(`${player.name}, 마지막 타자 삼진! 노히트노런 달성`);
     else news.push(hero);
@@ -973,9 +1068,11 @@ function resolveClutch(player, choice, option) {
     }
   } else {
     changeFame(player, opt.big ? -6 : -3);
-    news.push(choice.side === "bat"
-      ? `${choice.stage}, ${player.name} ${opt.big ? "헛스윙 삼진" : "범타"}… 고개 숙였다`
-      : `${choice.stage}, ${player.name} ${opt.big ? "통한의 끝내기 피홈런" : "결승점 허용"}… 아쉬움 삼켰다`);
+    news.push(
+      choice.side === "bat"
+        ? `${choice.stage}, ${player.name} ${opt.big ? "헛스윙 삼진" : "범타"}… 고개 숙였다`
+        : `${choice.stage}, ${player.name} ${opt.big ? "통한의 끝내기 피홈런" : "결승점 허용"}… 아쉬움 삼켰다`,
+    );
     if (choice.kind === "hsFinal") {
       const t = pendingFinal(r);
       if (t) t.result = "준우승";

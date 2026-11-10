@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>야구선수 키우기</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <h1>야구선수 키우기</h1>
@@ -47,9 +47,16 @@
         <select id="style"></select>
       </label>
 
+      <label>등번호 <small>(0~99)</small>
+        <input id="number" type="number" min="0" max="99" required>
+      </label>
+
+      <!-- 서포트 카드 (cards.js가 채움) -->
+      <div id="deck-box"></div>
+
       <button type="submit">선수 생성</button>
     </form>
-    <p id="version">v0.16</p>
+    <p id="version">v0.18</p>
   </section>
 
   <!-- 화면 2: 선수 정보와 시즌 진행 (처음엔 숨김) -->
@@ -64,12 +71,18 @@
       <button data-tab="result">시즌 결과</button>
       <button data-tab="news">뉴스</button>
       <button data-tab="board">반응</button>
-      <button data-tab="record">통산 기록</button>
-      <button data-tab="almanac">연감</button>
+      <button data-tab="mail">메일</button>
+      <button data-tab="records">기록</button>
       <button data-tab="nemesis">숙적</button>
-      <button data-tab="rank">순위</button>
+      <button data-tab="locker">동료</button>
       <button data-tab="money">재산</button>
       <button data-tab="ach">업적</button>
+    </nav>
+    <!-- 기록 탭 누를 때만 보이는 하위 탭 -->
+    <nav id="subtabs" hidden>
+      <button data-tab="record">통산 기록</button>
+      <button data-tab="almanac">연감</button>
+      <button data-tab="rank">순위</button>
     </nav>
 
     <div class="tab" id="tab-train">
@@ -85,9 +98,11 @@
     <div class="tab" id="tab-result" hidden></div>
     <div class="tab" id="tab-news" hidden></div>
     <div class="tab" id="tab-board" hidden></div>
+    <div class="tab" id="tab-mail" hidden></div>
     <div class="tab" id="tab-record" hidden></div>
     <div class="tab" id="tab-almanac" hidden></div>
     <div class="tab" id="tab-nemesis" hidden></div>
+    <div class="tab" id="tab-locker" hidden></div>
     <div class="tab" id="tab-rank" hidden></div>
     <div class="tab" id="tab-money" hidden></div>
     <div class="tab" id="tab-ach" hidden></div>
@@ -118,23 +133,59 @@
     </div>
   </div>
 
-  <script src="data.js"></script>
-  <script src="sim.js"></script>
-  <script src="money.js"></script>
-  <script src="career.js"></script>
-  <script src="national.js"></script>
-  <script src="story.js"></script>
-  <script src="rules.js"></script>
-  <script src="legacy.js"></script>
-  <script src="world.js"></script>
-  <script src="feed.js"></script>
-  <script src="news.js"></script>
-  <script src="extra.js"></script>
-  <script src="broadcast.js"></script>
-  <script src="nemesis.js"></script>
-  <script src="press.js"></script>
-  <script src="agent.js"></script>
-  <script src="almanac.js"></script>
-  <script src="main.js"></script>
+  <!-- 감독 면담 1대1 대화 -->
+  <div id="talk-modal" hidden>
+    <div class="talk-card">
+      <div class="talk-head"></div>
+      <div class="talk-log"></div>
+      <div class="talk-options"></div>
+    </div>
+  </div>
+
+  <!-- 작은 기록 알림 -->
+  <div id="toasts"></div>
+
+  <!-- 스크립트는 순서대로 읽힘 (모듈 안 씀, 함수는 전부 전역)
+       core: 규칙·데이터 / media: 기사·댓글·중계 / systems: 콘텐츠 / flow: 시즌에 연결 / ui: 화면 -->
+  <script src="js/core/util.js"></script>
+  <script src="js/core/data.js"></script>
+  <script src="js/core/sim.js"></script>
+  <script src="js/core/legacy.js"></script>
+  <script src="js/core/money.js"></script>
+  <script src="js/core/rules.js"></script>
+  <script src="js/core/career.js"></script>
+  <script src="js/core/world.js"></script>
+  <script src="js/core/extra.js"></script>
+
+  <script src="js/media/feed.js"></script>
+  <script src="js/media/news.js"></script>
+  <script src="js/media/broadcast.js"></script>
+  <script src="js/media/press.js"></script>
+  <script src="js/media/saber.js"></script>
+  <script src="js/media/almanac.js"></script>
+  <script src="js/media/mail.js"></script>
+
+  <script src="js/systems/national.js"></script>
+  <script src="js/systems/story.js"></script>
+  <script src="js/systems/boxscore.js"></script>
+  <script src="js/systems/nemesis.js"></script>
+  <script src="js/systems/agent.js"></script>
+  <script src="js/systems/dilemma.js"></script>
+  <script src="js/systems/body.js"></script>
+  <script src="js/systems/locker.js"></script>
+  <script src="js/systems/living.js"></script>
+  <script src="js/systems/era.js"></script>
+  <script src="js/systems/ceremony.js"></script>
+  <script src="js/systems/cards.js"></script>
+  <script src="js/systems/fanfare.js"></script>
+  <script src="js/systems/fandom.js"></script>
+  <script src="js/systems/meme.js"></script>
+  <script src="js/systems/sns.js"></script>
+
+  <script src="js/flow.js"></script>
+
+  <script src="js/ui/effects.js"></script>
+  <script src="js/ui/talk.js"></script>
+  <script src="js/ui/main.js"></script>
 </body>
 </html>

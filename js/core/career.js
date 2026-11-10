@@ -3,14 +3,6 @@
 // (국가대표 → 이벤트 → 시뮬레이션 → 순위·수상 → 성장 → 연봉 → 다음 단계)
 // =============================================
 
-function randomInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function pick(list) {
-  return list[Math.floor(Math.random() * list.length)];
-}
-
 const TOP_LEAGUES = ["KBO", "NPB", "MLB"];
 const PRO_LEAGUES = ["KBO2", "KBO", "NPB", "MLB"];
 
@@ -37,10 +29,13 @@ function initCareer(player) {
   if (!player.owned) player.owned = [];
   if (player.fame === undefined) player.fame = 0;
   if (!player.rival) player.rival = createRival(player);
-  initRules(player);   // 1군 등록 시즌 등 (rules.js)
-  initLegacy(player);  // 성장유형 (legacy.js)
-  initWorld(player);   // 숨은 특성, 전담 스태프 계약 (world.js)
+  initRules(player); // 1군 등록 시즌 등 (rules.js)
+  initLegacy(player); // 성장유형 (legacy.js)
+  initWorld(player); // 숨은 특성, 전담 스태프 계약 (world.js)
   initNemesis(player); // 숙적 목록 (nemesis.js)
+  initNumber(player); // 등번호 (fanfare.js)
+  initBalls(player); // 기념구 (ceremony.js)
+  applyWorldState(player); // 시대·신생구단 다시 적용 (era.js)
   if (!player.contract && !isAmateur(player.league)) {
     player.contract = makeContract(player.league, player.team, 1, minSalary(player.league, player), 0);
   }
@@ -122,8 +117,15 @@ function runSeason(player, focusKeys) {
   if (player.league === "SOCIAL") return serviceSeason(player, focusKeys); // 사회복무는 경기가 없음
   const league = LEAGUES[player.league];
   const report = {
-    age: player.age, year: gameYear(player), league: player.league, team: player.team,
-    events: [], specials: [], awards: [], bat: null, pit: null,
+    age: player.age,
+    year: gameYear(player),
+    league: player.league,
+    team: player.team,
+    events: [],
+    specials: [],
+    awards: [],
+    bat: null,
+    pit: null,
   };
 
   archiveNews(player); // 지난 시즌 기사 보관 (news.js)
@@ -152,6 +154,8 @@ function runSeason(player, focusKeys) {
   mod += hiddenMod(player, report); // 숨은 특성·회춘 (world.js)
   mod += seasonTraitMod(player); // 특정 계절에 강한 선수 (extra.js)
   mod += historicMod(player, report, league.level); // 역사적 시즌, 극악 확률 (extra.js)
+  mod += lockerMod(player, report); // 라커룸 사기 (locker.js)
+  mod += cardMod(player, report); // 서포트 카드 (cards.js)
   resolveCampWish(player, report, mod); // 감독 면담 '캠프 경쟁' 결과 (world.js)
   if (player.positionAdjust) {
     mod -= 2;
@@ -166,8 +170,10 @@ function runSeason(player, focusKeys) {
   const resting = player.restPlan === player.team; // 감독 면담: 베테랑 체력 관리
   if (resting) injuryChance *= 0.5;
   if (hasItem(player, "recovery")) injuryChance *= 0.8; // 회복 장비
+  injuryChance *= cardInjuryMul(player); // 트레이너 카드 (cards.js)
   const restFactor = resting ? 0.9 : 1;
-  gameFactor = rollInjury(player, report, injuryChance); // 부상 정도, 유리몸 (extra.js)
+  // 부상 정도, 유리몸 (extra.js) / 수술한 다음 해는 거의 통째로 쉼 (body.js)
+  gameFactor = player.surgeryOut ? surgerySeason(player, report) : rollInjury(player, report, injuryChance + bodyRisk(player));
   if (player.type === "twoway" && Math.random() < 0.03) {
     mod += 12;
     report.events.push("이도류 각성");
@@ -186,7 +192,15 @@ function runSeason(player, focusKeys) {
   if (ovrs.bat !== null) {
     const plan = batterPlan(player, ovrs.bat);
     const batPos = player.position.split(" 겸 ").pop();
-    report.bat = steadyBattingSeason(player.stats, league.level, Math.round(plan.games * gameFactor * restFactor), plan.pa, mod, batPos, LEAGUE_ENV[player.league]);
+    report.bat = steadyBattingSeason(
+      player.stats,
+      league.level,
+      Math.round(plan.games * gameFactor * restFactor),
+      plan.pa,
+      mod,
+      batPos,
+      LEAGUE_ENV[player.league],
+    );
     report.bat.role = plan.label;
     if (plan.label.startsWith("주전")) lineupEffect(player, report.bat); // 타순 (world.js)
   }
@@ -196,6 +210,7 @@ function runSeason(player, focusKeys) {
     report.pit.role = plan.label;
   }
   report.WAR = round((report.bat ? report.bat.WAR : 0) + (report.pit ? report.pit.WAR : 0), 1);
+  addSaber(report); // wRC+, FIP, K% (saber.js)
   report.gameFactor = gameFactor; // 1군 등록일수 계산용
   makeSplits(player, report); // 월별 성적 (extra.js)
   makeTracking(player, report); // 구속·구종·비거리·타구 방향 (broadcast.js)
@@ -220,9 +235,32 @@ function runSeason(player, focusKeys) {
   // (7) 기록 남기기
   player.leagueSeasons[player.league] = (player.leagueSeasons[player.league] || 0) + 1;
   player.history.push({
-    season: player.season, age: player.age, year: report.year, league: player.league, team: player.team,
-    bat: report.bat, pit: report.pit, WAR: report.WAR, psBat: report.psBat, psPit: report.psPit, psWAR: report.psWAR, tradedFrom: report.tradedFrom, awards: report.awards.slice(), events: report.events.slice(), track: report.track, leaders: report.leaders,
-    standing: report.standing && { rank: report.standing.rank, teams: report.standing.teams, w: report.standing.w, l: report.standing.l, group: report.standing.group, seed: report.standing.seed, all: report.standing.all, altChamp: report.standing.altChamp },
+    season: player.season,
+    age: player.age,
+    year: report.year,
+    league: player.league,
+    team: player.team,
+    bat: report.bat,
+    pit: report.pit,
+    WAR: report.WAR,
+    psBat: report.psBat,
+    psPit: report.psPit,
+    psWAR: report.psWAR,
+    tradedFrom: report.tradedFrom,
+    awards: report.awards.slice(),
+    events: report.events.slice(),
+    track: report.track,
+    leaders: report.leaders,
+    standing: report.standing && {
+      rank: report.standing.rank,
+      teams: report.standing.teams,
+      w: report.standing.w,
+      l: report.standing.l,
+      group: report.standing.group,
+      seed: report.standing.seed,
+      all: report.standing.all,
+      altChamp: report.standing.altChamp,
+    },
   });
 
   // (8) 나이 먹고 다음 단계로
@@ -238,12 +276,15 @@ function runSeason(player, focusKeys) {
   buildFeed(player, report);
   afterSeasonStory(player, report);
 
-  // (10) v16: 숙적, 신기록, 기자회견
+  // (10) 숙적, 신기록, 기자회견
   nemesisSeason(player, report); // 숙적 맞대결 (nemesis.js)
   nemesisMemes(player, report);
-  nemesisLife(player, report);   // 숙적 은퇴·이적·감독 부임
-  trackRecords(player, report);  // 구속·비거리 신기록 팝업 (broadcast.js)
-  pressSeason(player, report);   // 기자회견 + 작년 공약 회수 (press.js)
+  nemesisLife(player, report); // 숙적 은퇴·이적·감독 부임
+  trackRecords(player, report); // 구속·비거리 신기록 팝업 (broadcast.js)
+  pressSeason(player, report); // 기자회견 + 작년 공약 회수 (press.js)
+
+  // (11) 몸·딜레마·라커룸·기록 사냥·카드·세레머니·팬심·밈·논란 (flow.js)
+  afterSeason(player, report);
   return report;
 }
 
@@ -294,7 +335,17 @@ function addAward(player, report, name) {
   report.specials.push({ key: "award", award: name });
 }
 
-const TITLE_NAMES = { hr: "홈런왕", avg: "타격왕", rbi: "타점왕", sb: "도루왕", w: "다승왕", k: "탈삼진왕", sv: "세이브왕", hld: "홀드왕", era: "평균자책점왕" };
+const TITLE_NAMES = {
+  hr: "홈런왕",
+  avg: "타격왕",
+  rbi: "타점왕",
+  sb: "도루왕",
+  w: "다승왕",
+  k: "탈삼진왕",
+  sv: "세이브왕",
+  hld: "홀드왕",
+  era: "평균자책점왕",
+};
 
 function checkAwards(player, report) {
   const lg = player.league;
@@ -340,6 +391,7 @@ function growPlayer(player, focusKeys, report) {
   if (report.WAR >= 4) bonus += 1;
   if (report.events.includes("각성")) bonus += 1;
   if (report.events.includes("이도류 각성")) bonus += 5;
+  bonus += lockerGrowBonus(player); // 멘토랑 가까우면 (locker.js)
   const focusBonus = hasItem(player, "trainer") ? 1 : 0;
 
   const gains = {};
@@ -348,7 +400,7 @@ function growPlayer(player, focusKeys, report) {
     if (focusKeys.includes(key)) {
       // 나이가 들수록 훈련 효과가 줄어듦
       const ageFactor = player.age >= 36 ? 0.25 : player.age >= 32 ? 0.5 : 1;
-      growth = base * (0.5 + Math.random()) + bonus + (1.5 + Math.random() * 1.5 + focusBonus) * ageFactor;
+      growth = base * (0.5 + Math.random()) + bonus + (1.5 + Math.random() * 1.5 + focusBonus + cardFocusBonus(player, key)) * ageFactor; // 카드 보너스 (cards.js)
     } else {
       growth = base * (0.5 + Math.random()) + bonus;
       // 훈련을 안 하면 감이 떨어질 수 있음 (고교 때는 덜)
@@ -372,8 +424,8 @@ function draftScore(player, report) {
   const schoolBonus = player.league === "HS" && school ? school.level * 2 : 0; // 강팀은 스카우트 노출이 많음
   const twowayBonus = player.type === "twoway" ? 4 : 0;
   const collegeBonus = player.league === "COLLEGE" ? 3 : 0; // 대학에서 검증된 선수
-  const warBonus = clamp((report.WAR || 0) * 1.5, 0, 6);   // 졸업반 성적
-  const cupBonus = hsCupBonus(report);                     // 전국대회 성적
+  const warBonus = clamp((report.WAR || 0) * 1.5, 0, 6); // 졸업반 성적
+  const cupBonus = hsCupBonus(report); // 전국대회 성적
   return Math.round(getOvrs(player).best + schoolBonus + collegeBonus + twowayBonus + warBonus + cupBonus);
 }
 
@@ -382,28 +434,10 @@ function hsCupBonus(report) {
   const cups = report.hsTournaments || report.collegeCups;
   if (!cups) return 0;
   const pts = { "우승": 2, "준우승": 1.5, "결승 진출": 1.5, "4강": 1, "8강": 0.5 };
-  return Math.min(4, cups.reduce((sum, t) => sum + (pts[t.result] || 0), 0));
-}
-
-function joinDraft(player, report, round) {
-  player.league = "KBO2";
-  player.team = pick(TEAMS.KBO);
-  player.draftRound = round;
-  const bonus = Math.round(MONEY.draftBonus[round - 1] * priceIndex(player) * (0.8 + Math.random() * 0.4));
-  player.contract = makeContract("KBO2", player.team, 1, minSalary("KBO2", player), 0);
-  addMoney(player, bonus);
-  report.specials.push({ key: round === 1 ? "draftTop" : "draft", round, team: player.team, bonus: fmtMoney(bonus) });
-  if (player.type === "twoway") {
-    pushChoice(player, {
-      key: "twoway",
-      text: `${player.team} 코칭스태프가 묻습니다. "프로에서도 이도류를 계속할 건가?"`,
-      options: [
-        { id: "keep", label: "이도류 유지 (힘들지만 대박 가능)" },
-        { id: "batter", label: "타자에 전념" },
-        { id: "pitcher", label: "투수에 전념" },
-      ],
-    });
-  }
+  return Math.min(
+    4,
+    cups.reduce((sum, t) => sum + (pts[t.result] || 0), 0),
+  );
 }
 
 function moveCareer(player, report) {
@@ -416,7 +450,7 @@ function moveCareer(player, report) {
     collegeDraft(player, report); // 대학 4학년 끝 → 대졸 드래프트
   } else if (lg === "INDIE" || lg === "ABL") {
     indieToPro(player, report); // 드래프트 또는 육성선수 계약 (rules.js)
-    indieScout(player, report);  // 나이 많아도 실력 되면 육성 계약 (extra.js)
+    indieScout(player, report); // 나이 많아도 실력 되면 육성 계약 (extra.js)
   } else if (lg === "KBO2" || lg === "KBO") {
     player.proSeasons++;
     countKboService(player, report); // 1군 등록 145일 이상이면 FA 1시즌 (rules.js)
@@ -463,9 +497,13 @@ function moveCareer(player, report) {
     if (ovr < LEAGUES[lg].level - 10) {
       // 방출: 국내 복귀 제안
       report.specials.push({ key: "uturn" });
-      pushChoice(player, faChoice(player, `해외 팀에서 방출됐어요.${player.kboRights ? ` KBO로 돌아가려면 보류권을 가진 ${player.kboRights}하고만 계약할 수 있어요.` : ""}`));
+      pushChoice(
+        player,
+        faChoice(player, `해외 팀에서 방출됐어요.${player.kboRights ? ` KBO로 돌아가려면 보류권을 가진 ${player.kboRights}하고만 계약할 수 있어요.` : ""}`),
+      );
     } else if (c.years <= 0) {
-      if (lg === "MLB") mlbContractEnd(player, report); // 서비스타임 6년 전이면 연봉조정·논텐더 (rules.js)
+      if (lg === "MLB")
+        mlbContractEnd(player, report); // 서비스타임 6년 전이면 연봉조정·논텐더 (rules.js)
       else pushChoice(player, faChoice(player, "NPB 계약이 끝났어요. 외국인 선수라 자유롭게 다음 행선지를 고를 수 있어요."));
     }
   }
@@ -486,7 +524,7 @@ function resolveChoice(player, id) {
 
   if (id === "retire") {
     retirePlayer(player);
-    news.push(fillText(NEWS.special.retire, player, {}));
+    news.push(player.banned ? `${player.name}, 영구 제명으로 그라운드에서 쫓겨났다` : fillText(NEWS.special.retire, player, {}));
     return news;
   }
 
@@ -535,6 +573,7 @@ function resolveChoice(player, id) {
     const move = franchiseMoveNews(player, oldTeam);
     if (move) news.push(move.line);
     if (!stayed && TOP_LEAGUES.includes(o.league)) pressSigning(player, oldTeam); // 입단 기자회견 (press.js)
+    news.push(...faPathResult(player, o, stayed)); // 돈 / 우승 / 고향 (dilemma.js)
   } else if (choice.key === "agent") {
     news.push(...resolveAgent(player, choice, option)); // 에이전트 (agent.js)
   } else if (choice.key === "press") {
@@ -557,6 +596,8 @@ function resolveChoice(player, id) {
       player.teamFocus = true;
       news.push(`${player.name}, ${choice.eventName} 대표팀 고사… "소속팀에 집중하겠다"`);
     }
+  } else if (SIDE_CHOICE_KEYS.includes(choice.key)) {
+    news.push(...resolveSideChoice(player, choice, option)); // 몸·딜레마·라커룸·논란 등 (flow.js)
   } else {
     news.push(...resolveStoryChoice(player, choice, option)); // 병역, 포지션, 인터뷰·사생활
   }
@@ -571,18 +612,62 @@ const RANKING_KEY = "baseball-ranking";
 // 통산 기록 (고교 제외)
 function careerTotals(player, leagueFilter) {
   const t = {
-    G: 0, PA: 0, AB: 0, H: 0, D: 0, T: 0, HR: 0, RBI: 0, R: 0, SB: 0, BB: 0, K: 0, CH: 0, E: 0, SBA: 0, CS: 0,
-    pG: 0, GS: 0, W: 0, L: 0, SV: 0, HLD: 0, outs: 0, pH: 0, pHR: 0, pBB: 0, pK: 0, pR: 0, ER: 0, pCH: 0, pE: 0, WAR: 0,
+    G: 0,
+    PA: 0,
+    AB: 0,
+    H: 0,
+    D: 0,
+    T: 0,
+    HR: 0,
+    RBI: 0,
+    R: 0,
+    SB: 0,
+    BB: 0,
+    K: 0,
+    CH: 0,
+    E: 0,
+    SBA: 0,
+    CS: 0,
+    pG: 0,
+    GS: 0,
+    W: 0,
+    L: 0,
+    SV: 0,
+    HLD: 0,
+    outs: 0,
+    pH: 0,
+    pHR: 0,
+    pBB: 0,
+    pK: 0,
+    pR: 0,
+    ER: 0,
+    pCH: 0,
+    pE: 0,
+    WAR: 0,
   };
+  const used = [];
   for (const h of player.history) {
     if (isAmateur(h.league)) continue;
     if (leagueFilter && !leagueFilter.includes(h.league)) continue;
+    used.push(h);
     t.WAR += h.WAR;
     if (h.bat) for (const k of ["G", "PA", "AB", "H", "D", "T", "HR", "RBI", "R", "SB", "BB", "K", "CH", "E", "SBA", "CS"]) t[k] += h.bat[k] || 0;
     if (h.pit) {
-      t.pG += h.pit.G; t.GS += h.pit.GS || 0; t.W += h.pit.W; t.L += h.pit.L; t.SV += h.pit.SV; t.HLD += h.pit.HLD;
-      t.outs += h.pit.outs; t.pH += h.pit.H; t.pHR += h.pit.HR; t.pBB += h.pit.BB; t.pK += h.pit.K; t.pR += h.pit.R; t.ER += h.pit.ER;
-      t.pCH += h.pit.CH || 0; t.pE += h.pit.E || 0;
+      t.pG += h.pit.G;
+      t.GS += h.pit.GS || 0;
+      t.W += h.pit.W;
+      t.L += h.pit.L;
+      t.SV += h.pit.SV;
+      t.HLD += h.pit.HLD;
+      t.outs += h.pit.outs;
+      t.pH += h.pit.H;
+      t.pHR += h.pit.HR;
+      t.pBB += h.pit.BB;
+      t.pK += h.pit.K;
+      t.pR += h.pit.R;
+      t.ER += h.pit.ER;
+      t.pCH += h.pit.CH || 0;
+      t.pE += h.pit.E || 0;
     }
   }
   t.WAR = round(t.WAR, 1);
@@ -596,11 +681,12 @@ function careerTotals(player, leagueFilter) {
   t.BABIP = babip(t);
   t.pBABIP = pitBabip({ outs: t.outs, K: t.pK, H: t.pH, HR: t.pHR });
   t.FPCT = t.CH ? (t.CH - t.E) / t.CH : null;
+  Object.assign(t, saberTotals(used)); // wRC+, FIP 통산 (saber.js)
   return t;
 }
 
 function retirePlayer(player) {
-  player.retireNews = retireStory(player); // 프랜차이즈 스타는 영구결번
+  player.retireNews = player.banned ? "승부조작 가담으로 KBO에서 영구 제명됐다" : retireStory(player); // 프랜차이즈 스타는 영구결번
   player.retired = true;
   runHofVote(player); // 명예의 전당 투표 (legacy.js)
   player.retireAchievements = checkAchievements(player);
@@ -608,16 +694,45 @@ function retirePlayer(player) {
   player.choiceQueue = [];
   const t = careerTotals(player);
   const count = (pattern) =>
-    Object.entries(player.awards).filter(([k]) => k.includes(pattern)).reduce((s, [, v]) => s + v, 0);
+    Object.entries(player.awards)
+      .filter(([k]) => k.includes(pattern))
+      .reduce((s, [, v]) => s + v, 0);
   const entry = {
-    name: player.name, type: player.type, school: player.school, retireAge: player.age,
-    bestOvr: player.bestOvr, WAR: t.WAR, HR: t.HR, AVG: t.AVG, W: t.W, SV: t.SV,
-    MVP: count("MVP"), champs: count("시리즈 우승"), national: player.awards["국가대표"] || 0,
-    money: player.money, leagues: Object.keys(player.leagueSeasons), nickname: player.nickname || "",
+    name: player.name,
+    type: player.type,
+    school: player.school,
+    retireAge: player.age,
+    bestOvr: player.bestOvr,
+    WAR: t.WAR,
+    HR: t.HR,
+    AVG: t.AVG,
+    W: t.W,
+    SV: t.SV,
+    MVP: count("MVP"),
+    champs: count("시리즈 우승"),
+    national: player.awards["국가대표"] || 0,
+    money: player.money,
+    leagues: Object.keys(player.leagueSeasons),
+    nickname: player.nickname || "",
+    retireYear: gameYear(player),
+    team: player.team,
+    banned: !!player.banned, // 감독 후보·레전드로 다시 나옴 (living.js)
   };
   entry.score = entry.MVP * 10 + entry.champs * 5 + entry.WAR;
   // 랭킹에서 눌러 볼 수 있게 시즌별 기록도 같이 저장함 (용량 아끼려고 필요한 것만)
-  entry.history = player.history.map((h) => ({ year: h.year, age: h.age, league: h.league, team: h.team, bat: h.bat, pit: h.pit, WAR: h.WAR, psBat: h.psBat, psPit: h.psPit, psWAR: h.psWAR, tradedFrom: h.tradedFrom }));
+  entry.history = player.history.map((h) => ({
+    year: h.year,
+    age: h.age,
+    league: h.league,
+    team: h.team,
+    bat: h.bat,
+    pit: h.pit,
+    WAR: h.WAR,
+    psBat: h.psBat,
+    psPit: h.psPit,
+    psWAR: h.psWAR,
+    tradedFrom: h.tradedFrom,
+  }));
   entry.nationalHistory = player.nationalHistory || [];
   entry.faEarned = player.faEarned || 0;
   entry.awards = { ...player.awards };
@@ -627,17 +742,19 @@ function retirePlayer(player) {
   ranking.push(entry);
   ranking.sort((a, b) => b.WAR - a.WAR); // 역대 랭킹은 통산 WAR 순
   const top = ranking.slice(0, 50);
-  try { localStorage.setItem(RANKING_KEY, JSON.stringify(top)); } catch (e) {
-    // 저장 공간이 모자라면 11위 아래는 시즌별 기록을 빼고 저장함
-    top.forEach((r, i) => { if (i >= 10) { delete r.history; delete r.awards; } });
-    try { localStorage.setItem(RANKING_KEY, JSON.stringify(top)); } catch (e2) {}
-  }
+  if (saveJSON(RANKING_KEY, top)) return;
+  // 저장 공간이 모자라면 11위 아래는 시즌별 기록을 빼고 저장함
+  top.forEach((r, i) => {
+    if (i >= 10) {
+      delete r.history;
+      delete r.awards;
+    }
+  });
+  saveJSON(RANKING_KEY, top);
 }
 
 function loadRanking() {
-  let list = [];
-  try { list = JSON.parse(localStorage.getItem(RANKING_KEY)) || []; } catch (e) {}
-  return list.sort((a, b) => b.WAR - a.WAR);
+  return loadJSON(RANKING_KEY, []).sort((a, b) => b.WAR - a.WAR);
 }
 
 // 명문대(전력 3)에서 실력이 아직 모자라면 벤치 (대학 리그 수준 + 5 미만)

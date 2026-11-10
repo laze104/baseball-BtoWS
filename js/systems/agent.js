@@ -1,5 +1,5 @@
 // =============================================
-// agent.js : v16 FA 에이전트
+// agent.js : FA 에이전트
 // - FA 대박 예감 선수한테 에이전시가 먼저 찾아옴
 // - 국내 에이전시: 수수료 3%, 조건 조금 올려줌
 // - 대형 에이전시: 수수료 5% (KBO 공인 에이전트 수수료 상한 5% 참고), 조건 크게 올리고 해외 구단 연결
@@ -9,15 +9,26 @@
 
 const AGENCIES = {
   local: {
-    id: "local", name: "한빛 스포츠 매니지먼트", boss: "한정훈 대표", rate: 0.03,
-    boost: [1.04, 1.08], nego: 0.12, withdraw: 0.15,
-    pitch: "\"구단들 사정은 제가 제일 잘 압니다. 원소속팀이랑도 얼굴 붉히지 않게 정리해 드릴게요.\"",
+    id: "local",
+    name: "한빛 스포츠 매니지먼트",
+    boss: "한정훈 대표",
+    rate: 0.03,
+    boost: [1.04, 1.08],
+    nego: 0.12,
+    withdraw: 0.15,
+    pitch: '"구단들 사정은 제가 제일 잘 압니다. 원소속팀이랑도 얼굴 붉히지 않게 정리해 드릴게요."',
     desc: "수수료 3% · 제안 +4~8% · 모든 구단과 협상 가능 · 협상 성공률 조금 ↑",
   },
   big: {
-    id: "big", name: "스톤 스포츠 그룹", boss: "마크 스톤 대표", rate: 0.05,
-    boost: [1.08, 1.15], nego: 0.22, withdraw: 0.1, mega: true,
-    pitch: "\"시장 최고 대우가 아니면 사인하지 마세요. 메이저리그 구단들 전화번호는 제가 다 갖고 있습니다.\"",
+    id: "big",
+    name: "스톤 스포츠 그룹",
+    boss: "마크 스톤 대표",
+    rate: 0.05,
+    boost: [1.08, 1.15],
+    nego: 0.22,
+    withdraw: 0.1,
+    mega: true,
+    pitch: '"시장 최고 대우가 아니면 사인하지 마세요. 메이저리그 구단들 전화번호는 제가 다 갖고 있습니다."',
     desc: "수수료 5% · 제안 +8~15% · 해외 구단 연결 · 메가 계약도 협상 · 협상 성공률 크게 ↑",
   },
 };
@@ -93,7 +104,16 @@ function agentBoost(player, offers) {
     if (!offers.some((o) => o.mega) && player.league === "MLB" && player.age <= 31 && recentWar(player) >= 4.5 && ovr >= mlbLv + 3) {
       const years = clamp(11 - Math.max(0, player.age - 26), 7, 11);
       const salary = Math.round(Math.min(6000000 * priceIndex(player), marketValue(player, "MLB") * 1.1));
-      offers.push({ league: "MLB", team: pick(RICH_TEAMS.filter((t) => t !== player.team)), years, total: salary * years, bonus: 0, salary, mega: true, agentFound: true });
+      offers.push({
+        league: "MLB",
+        team: pick(RICH_TEAMS.filter((t) => t !== player.team)),
+        years,
+        total: salary * years,
+        bonus: 0,
+        salary,
+        mega: true,
+        agentFound: true,
+      });
     }
   } else if ((player.league === "KBO" || player.league === "KBO2") && offers.filter((o) => o.league === "KBO").length < 3) {
     const team = pick(TEAMS.KBO.filter((t) => !offers.some((o) => o.team === t)));

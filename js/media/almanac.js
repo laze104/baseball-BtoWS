@@ -1,5 +1,5 @@
 // =============================================
-// almanac.js : v16 기록 연감 탭 (OOTP 연감 느낌)
+// almanac.js : 기록 연감 탭 (OOTP 연감 느낌)
 // 1. 시즌 리그 리더보드 (가짜 선수들 + 나)
 // 2. 마일스톤 진행도
 // 3. 커리어 하이
@@ -11,14 +11,14 @@
 // 리더보드 항목: statRanks의 key랑 같음. step도 statRanks랑 같게 맞춤
 const LEADER_KEYS = {
   avg: { step: 0.006, rate: true, get: (r) => r.bat && r.bat.AVG },
-  hr:  { step: 2, get: (r) => r.bat && r.bat.HR },
+  hr: { step: 2, get: (r) => r.bat && r.bat.HR },
   rbi: { step: 4, get: (r) => r.bat && r.bat.RBI },
   ops: { step: 0.02, rate: true, get: (r) => r.bat && r.bat.OPS },
-  sb:  { step: 3, get: (r) => r.bat && r.bat.SB },
+  sb: { step: 3, get: (r) => r.bat && r.bat.SB },
   era: { step: 0.15, low: true, dec: 2, get: (r) => r.pit && r.pit.ERA },
-  w:   { step: 1, get: (r) => r.pit && r.pit.W },
-  k:   { step: 8, get: (r) => r.pit && r.pit.K },
-  sv:  { step: 2, get: (r) => r.pit && r.pit.SV },
+  w: { step: 1, get: (r) => r.pit && r.pit.W },
+  k: { step: 8, get: (r) => r.pit && r.pit.K },
+  sv: { step: 2, get: (r) => r.pit && r.pit.SV },
   hld: { step: 2, get: (r) => r.pit && r.pit.HLD },
   war: { step: 0.4, dec: 1, get: (r) => r.WAR },
 };
@@ -79,8 +79,11 @@ function showAlmanac(player) {
   let html = "";
   html += leadersHtml(player);
   html += milestoneHtml(player);
+  html += ballAlbumHtml(player); // 기념구 앨범 (ceremony.js)
   html += careerHighHtml(player, pro);
   html += trackHistoryHtml(player);
+  html += recordHuntHtml(player); // 기록 사냥 (living.js)
+  html += eraTimelineHtml(player); // 시대 연표 (era.js)
   html += hallHtml(player);
   html += highlightHtml(player);
   box.innerHTML = html || "<p class='empty'>아직 연감에 실을 기록이 없어요.</p>";
@@ -195,15 +198,33 @@ function hallHtml(player) {
   const past = loadRanking();
   const me = careerTotals(player);
   const sum = (r, fn) => (r.history ? r.history.filter((h) => !isAmateur(h.league)).reduce((s, h) => s + (fn(h) || 0), 0) : null);
-  const people = past.map((r) => ({ name: r.name, WAR: r.WAR, HR: r.HR, W: r.W, SV: r.SV, H: sum(r, (h) => h.bat && h.bat.H), K: sum(r, (h) => h.pit && h.pit.K) }));
+  const people = past.map((r) => ({
+    name: r.name,
+    WAR: r.WAR,
+    HR: r.HR,
+    W: r.W,
+    SV: r.SV,
+    H: sum(r, (h) => h.bat && h.bat.H),
+    K: sum(r, (h) => h.pit && h.pit.K),
+  }));
   people.push({ name: player.name, WAR: me.WAR, HR: me.HR, W: me.W, SV: me.SV, H: me.H, K: me.pK, now: true });
-  const cats = [["통산 WAR", "WAR"], ["홈런", "HR"], ["안타", "H"], ["승리", "W"], ["세이브", "SV"], ["탈삼진", "K"]];
+  const cats = [
+    ["통산 WAR", "WAR"],
+    ["홈런", "HR"],
+    ["안타", "H"],
+    ["승리", "W"],
+    ["세이브", "SV"],
+    ["탈삼진", "K"],
+  ];
   let html = `<h4>🏛️ 역대 기록실 <small>(이 브라우저에서 키운 선수들)</small></h4><div class="leaders">`;
   for (const [label, key] of cats) {
     const list = people.filter((p) => p[key] !== null && p[key] > 0).sort((a, b) => b[key] - a[key]);
     if (!list.length) continue;
     const myIdx = list.findIndex((p) => p.now);
-    html += `<div class="leader"><b>${label}</b><ol>${list.slice(0, 5).map((p) => `<li class="${p.now ? "mine" : ""}"><span>${p.name}${p.now ? "<small>현역</small>" : ""}</span><em>${p[key]}</em></li>`).join("")}</ol>${myIdx >= 5 ? `<p class="me-rank">… ${myIdx + 1}위 ${player.name} ${list[myIdx][key]}</p>` : ""}</div>`;
+    html += `<div class="leader"><b>${label}</b><ol>${list
+      .slice(0, 5)
+      .map((p) => `<li class="${p.now ? "mine" : ""}"><span>${p.name}${p.now ? "<small>현역</small>" : ""}</span><em>${p[key]}</em></li>`)
+      .join("")}</ol>${myIdx >= 5 ? `<p class="me-rank">… ${myIdx + 1}위 ${player.name} ${list[myIdx][key]}</p>` : ""}</div>`;
   }
   html += "</div>";
   if (!past.length) html += `<p class="small">아직 은퇴한 선수가 없어요. 이 선수가 첫 번째 기록 보유자예요.</p>`;
@@ -213,5 +234,11 @@ function hallHtml(player) {
 function highlightHtml(player) {
   const list = player.highlights || [];
   if (!list.length) return "";
-  return `<h4>🎙️ 명장면 다시 보기</h4>${[...list].reverse().map((h) => `<details class="hl ${h.ok ? "ok" : "fail"}"><summary>${h.year} · ${h.stage} <b>${h.title}</b></summary>${h.pbp.map((l) => `<p>${l}</p>`).join("")}</details>`).join("")}`;
+  return `<h4>🎙️ 명장면 다시 보기</h4>${[...list]
+    .reverse()
+    .map(
+      (h) =>
+        `<details class="hl ${h.ok ? "ok" : "fail"}"><summary>${h.year} · ${h.stage} <b>${h.title}</b></summary>${(h.pbp || []).map((l) => `<p>${l}</p>`).join("")}${h.box ? boxScoreHtml(h.box) : ""}</details>`,
+    )
+    .join("")}`;
 }

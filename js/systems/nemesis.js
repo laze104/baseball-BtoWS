@@ -1,5 +1,5 @@
 // =============================================
-// nemesis.js : v16 네메시스 숙적 (차별화 기획서 S1)
+// nemesis.js : 네메시스 숙적
 // - 1군 리그(KBO·NPB·MLB)마다 숙적 후보 8명
 // - 해마다 나와의 맞대결 기록 (타석, 안타, 홈런, 삼진, 볼넷)
 // - 관계 단계: 모름 → 신경 쓰임 → 앙숙 → 존중하는 사이
@@ -44,7 +44,9 @@ function makeNemeses(player, league) {
     list.push({
       id: `${league}-${player.season}-${i}`,
       name: fakeName(league),
-      league, type, pos,
+      league,
+      type,
+      pos,
       team: otherTeam(player, league),
       age: clamp(player.age + randomInt(-4, 4), 19, 36),
       ovr: level + randomInt(-4, 8),
@@ -60,8 +62,6 @@ function makeNemeses(player, league) {
   player.nemeses.push(...list);
 }
 
-const nemName = (n) => n.name;
-
 // 시즌마다: 맞대결 시뮬 (career.js runSeason에서 순위 정한 뒤 부름)
 function nemesisSeason(player, report) {
   initNemesis(player);
@@ -71,7 +71,7 @@ function nemesisSeason(player, report) {
   const level = LEAGUES[lg].level;
   const active = player.nemeses.filter((n) => n.league === lg && n.status === "active" && n.team !== report.team);
   // 한 시즌에 붙는 숙적은 3~5명 (같은 리그라도 매번 만나진 않음)
-  const faced = [...active].sort(() => Math.random() - 0.5).slice(0, randomInt(3, 5));
+  const faced = shuffle(active).slice(0, randomInt(3, 5));
   report.nemesis = [];
   for (const n of faced) {
     const vsBat = n.type === "pitcher"; // 상대가 투수면 나는 타석에 섬
@@ -99,17 +99,26 @@ function matchup(mine, vsBat, n, level) {
     hr = mine.PA ? mine.HR / mine.PA : 0.02;
     k = mine.PA ? mine.K / mine.PA : 0.2;
     bb = mine.PA ? mine.BB / mine.PA : 0.08;
-    hit *= 1 - edge; hr *= 1 - edge * 1.5; k *= 1 + edge * 1.5;
+    hit *= 1 - edge;
+    hr *= 1 - edge * 1.5;
+    k *= 1 + edge * 1.5;
   } else {
     const bf = Math.max(1, mine.outs + mine.H + mine.BB);
-    hit = mine.H / bf; hr = mine.HR / bf; k = mine.K / bf; bb = mine.BB / bf;
-    hit *= 1 + edge; hr *= 1 + edge * 1.5; k *= 1 - edge * 1.5;
+    hit = mine.H / bf;
+    hr = mine.HR / bf;
+    k = mine.K / bf;
+    bb = mine.BB / bf;
+    hit *= 1 + edge;
+    hr *= 1 + edge * 1.5;
+    k *= 1 - edge * 1.5;
   }
   const r = { PA, H: 0, HR: 0, K: 0, BB: 0 };
   for (let i = 0; i < PA; i++) {
     const x = Math.random();
-    if (x < hr) { r.HR++; r.H++; }
-    else if (x < hit) r.H++;
+    if (x < hr) {
+      r.HR++;
+      r.H++;
+    } else if (x < hit) r.H++;
     else if (x < hit + bb) r.BB++;
     else if (x < hit + bb + k) r.K++;
   }
@@ -139,7 +148,12 @@ function updateStage(player, n, r, vsBat, report) {
     n.meme = pick(NEMESIS_MEMES);
     report.news.push(`${player.name} vs ${n.name}, 새로운 앙숙 탄생… "${n.memory || "만나면 불꽃"}"`);
     report.bigMoments = report.bigMoments || [];
-    report.bigMoments.push({ tone: "bad", kicker: "숙적 등장", title: `⚔️ ${n.name}`, lines: [`${n.team} ${n.pos}`, n.memory || "만날 때마다 불꽃이 튀어요", "관계: 앙숙"] });
+    report.bigMoments.push({
+      tone: "bad",
+      kicker: "숙적 등장",
+      title: `⚔️ ${n.name}`,
+      lines: [`${n.team} ${n.pos}`, n.memory || "만날 때마다 불꽃이 튀어요", "관계: 앙숙"],
+    });
   }
   if (n.stage === 3 && before < 3) {
     report.news.push(`${player.name}·${n.name}, 십 년 앙숙에서 서로 인정하는 사이로`);
@@ -194,7 +208,12 @@ function nemesisLife(player, report) {
         n.status = "manager";
         n.team = otherTeam(player, n.league);
         report.news.push(`${n.name}, ${n.team} 감독 부임… "이제는 벤치에서 ${player.name}${josaOf(player.name, "을")} 상대한다"`);
-        report.bigMoments.push({ tone: "bad", kicker: "숙적의 귀환", title: `🧢 ${n.name} 감독`, lines: [`${n.team} 신임 감독`, `현역 시절 맞대결 ${n.tot.PA}타석`, n.memory || ""] });
+        report.bigMoments.push({
+          tone: "bad",
+          kicker: "숙적의 귀환",
+          title: `🧢 ${n.name} 감독`,
+          lines: [`${n.team} 신임 감독`, `현역 시절 맞대결 ${n.tot.PA}타석`, n.memory || ""],
+        });
       }
       continue;
     }
@@ -209,7 +228,12 @@ function nemesisLife(player, report) {
       if (n.stage >= 2) {
         const letter = n.stage === 3 ? `"너 때문에 여기까지 왔다. 고마웠다, ${player.name}."` : `"끝내 너를 못 넘었네. 그래도 덕분에 버텼다."`;
         report.news.push(`${n.name} 은퇴… ${player.name}에게 남긴 한마디 ${letter}`);
-        report.bigMoments.push({ tone: "good", kicker: "숙적의 은퇴", title: `📨 ${n.name}의 편지`, lines: [letter, `통산 맞대결 ${n.tot.PA}타석 · 안타 ${n.tot.H} · 홈런 ${n.tot.HR} · 삼진 ${n.tot.K}`] });
+        report.bigMoments.push({
+          tone: "good",
+          kicker: "숙적의 은퇴",
+          title: `📨 ${n.name}의 편지`,
+          lines: [letter, `통산 맞대결 ${n.tot.PA}타석 · 안타 ${n.tot.H} · 홈런 ${n.tot.HR} · 삼진 ${n.tot.K}`],
+        });
       }
       continue;
     }
@@ -236,7 +260,7 @@ function nemesisTeammateChoice(player, n, from) {
     text: `🤝 어제의 적! ${from}에서 뛰던 숙적 ${n.name}이(가) ${player.team}에 왔어요. 첫 훈련날 라커룸에서 마주쳤어요.`,
     options: [
       { id: "shake", label: "먼저 손을 내민다", detail: "팬 여론 ↑ · 관계가 존중하는 사이로" },
-      { id: "cold", label: "\"여기선 내가 에이스다\" 기싸움", detail: "다음 시즌 컨디션 ↑ · 팬 여론 조금 ↓" },
+      { id: "cold", label: '"여기선 내가 에이스다" 기싸움', detail: "다음 시즌 컨디션 ↑ · 팬 여론 조금 ↓" },
     ],
   };
 }
@@ -283,7 +307,14 @@ function showNemesis(player) {
       <p class="small">${LEAGUES[n.league].name} · ${status} · ${n.pos}${n.revenge ? " · 🔥 복수 다짐" : ""}</p>
       <p class="nem-line">${vsBat ? "나(타자)" : "나(투수)"} vs ${n.name}: ${n.tot.PA}타석 ${n.tot.H}안타 ${n.tot.HR}홈런 ${n.tot.K}삼진 ${n.tot.BB}볼넷 · ${vsBat ? "타율" : "피안타율"} <b>${fmtRate(n.tot.H / ab)}</b></p>
       ${n.memory ? `<p class="nem-memory">“${n.memory}”</p>` : ""}
-      ${n.log.length ? `<p class="small">${n.log.slice(-5).map((l) => `${l.year}: ${l.H}/${l.PA - l.BB}${l.HR ? ` ${l.HR}HR` : ""}`).join(" · ")}</p>` : ""}
+      ${
+        n.log.length
+          ? `<p class="small">${n.log
+              .slice(-5)
+              .map((l) => `${l.year}: ${l.H}/${l.PA - l.BB}${l.HR ? ` ${l.HR}HR` : ""}`)
+              .join(" · ")}</p>`
+          : ""
+      }
     </div>`;
   }
   box.innerHTML = html + "</div>";

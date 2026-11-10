@@ -7,13 +7,13 @@
 // =============================================
 
 const FA_RULES = {
-  hsGrad: 8,         // 고졸: 1군 등록 8시즌이면 FA
-  collegeGrad: 7,    // 대졸: 7시즌
-  requalify: 4,      // FA 계약 후 다시 FA가 되려면 4시즌
-  posting: 7,        // 포스팅은 1군 등록 7시즌 + 구단 동의
+  hsGrad: 8, // 고졸: 1군 등록 8시즌이면 FA
+  collegeGrad: 7, // 대졸: 7시즌
+  requalify: 4, // FA 계약 후 다시 FA가 되려면 4시즌
+  posting: 7, // 포스팅은 1군 등록 7시즌 + 구단 동의
   serviceShare: 0.78, // 1군 등록일수 145일 ≒ 시즌의 78%
-  mlbArb: 3,         // MLB 서비스타임 3년부터 연봉조정
-  mlbFA: 6,          // 6년이면 FA
+  mlbArb: 3, // MLB 서비스타임 3년부터 연봉조정
+  mlbFA: 6, // 6년이면 FA
 };
 
 const RULE_CHOICES = ["posting", "postingOffer", "draftSign", "collegePick"];
@@ -21,6 +21,7 @@ const RULE_CHOICES = ["posting", "postingOffer", "draftSign", "collegePick"];
 Object.assign(NEWS.special, {
   scouts: "MLB·NPB 스카우트들, {name} 보러 줄줄이 방한",
   serviceShort: "{name}, 1군 등록일수 부족… FA 시계 1년 늦어진다",
+  serviceMerge: "{name}, 모자랐던 1군 등록일수 합산해 1시즌 인정… FA 시계 다시 돈다",
   renew: "{name}, FA 재자격까지 {left}시즌… {team|과} 1년 재계약",
   arbitration: "{name}, 연봉조정 거쳐 1년 {salary} 계약 (서비스타임 {years}년)",
   preArb: "{name}, 서비스타임 {years}년… 구단과 1년 {salary} 재계약",
@@ -48,10 +49,21 @@ function countKboService(player, report) {
   } else {
     const days = registeredDays(report);
     report.events.push(`1군 등록 ${days}일 (부족)`);
+    // 모자란 시즌 등록일수는 쌓아 뒀다가 145일 차면 1시즌으로 쳐줌 (실제 규정)
+    player.kboDaysBank = (player.kboDaysBank || 0) + days;
+    let merged = false;
+    if (player.kboDaysBank >= FA_DAYS) {
+      player.kboDaysBank -= FA_DAYS;
+      player.kboService = (player.kboService || 0) + 1;
+      merged = true;
+      report.events.push("등록일수 합산 1시즌 인정");
+      report.specials.push({ key: "serviceMerge" });
+    }
     // 부상 때문이면 크게 알려줌 (extra.js), 아니면 기사만
-    if (!serviceShortNotice(player, report, days)) report.specials.push({ key: "serviceShort" });
+    if (!merged && !serviceShortNotice(player, report, days)) report.specials.push({ key: "serviceShort" });
   }
 }
+const FA_DAYS = 145; // 1시즌으로 쳐주는 1군 등록일수
 
 function isKboFaEligible(player) {
   const s = player.kboService || 0;
@@ -107,11 +119,7 @@ function renewAfterFa(player, report) {
 const DOLLAR_25M = 3500000; // 2,500만 달러 ≒ 350억 원 (만원 단위)
 
 function postingFee(total) {
-  return Math.round(
-    0.2 * Math.min(total, DOLLAR_25M) +
-    0.175 * clamp(total - DOLLAR_25M, 0, DOLLAR_25M) +
-    0.15 * Math.max(total - 2 * DOLLAR_25M, 0)
-  );
+  return Math.round(0.2 * Math.min(total, DOLLAR_25M) + 0.175 * clamp(total - DOLLAR_25M, 0, DOLLAR_25M) + 0.15 * Math.max(total - 2 * DOLLAR_25M, 0));
 }
 
 function postingChance(player, league, boost) {
@@ -146,7 +154,11 @@ function maybePosting(player, report) {
     boost: bomb,
     text: `${bomb ? "KBO를 폭격하자 해외 스카우트들이 몰려왔어요! " : ""}1군 등록 ${player.kboService}시즌을 채워 포스팅 자격이 있어요. 구단이 허락하면 해외 구단과 협상할 수 있어요. 실패하면 팀으로 돌아와요.`,
     options: [
-      { id: "MLB", label: "MLB 포스팅 요청", detail: `구단 동의 ${consent} · 30개 구단과 30일 협상 · 계약 가능성 ${chanceLabel(postingChance(player, "MLB", bomb))}` },
+      {
+        id: "MLB",
+        label: "MLB 포스팅 요청",
+        detail: `구단 동의 ${consent} · 30개 구단과 30일 협상 · 계약 가능성 ${chanceLabel(postingChance(player, "MLB", bomb))}`,
+      },
       { id: "NPB", label: "NPB 이적 요청", detail: `구단 동의 ${consent} · 계약 가능성 ${chanceLabel(postingChance(player, "NPB", bomb))}` },
       { id: "stay", label: "올해는 팀에 남는다", detail: "다음 비시즌에 다시 요청할 수 있어요" },
     ],
@@ -162,11 +174,13 @@ function resolvePosting(player, choice, option) {
   }
   if (Math.random() > postingChance(player, league, choice.boost)) {
     changeFame(player, -2);
-    return [`${player.name}, ${LEAGUES[league].name} 진출 무산… ${league === "MLB" ? "30일 협상 기간 안에 계약 못 해" : "조건이 맞는 팀이 없어"} ${player.team} 복귀`];
+    return [
+      `${player.name}, ${LEAGUES[league].name} 진출 무산… ${league === "MLB" ? "30일 협상 기간 안에 계약 못 해" : "조건이 맞는 팀이 없어"} ${player.team} 복귀`,
+    ];
   }
   const ovr = getOvrs(player).best;
   const count = ovr >= 72 ? 3 : ovr >= 68 ? 2 : 1;
-  const teams = [...TEAMS[league]].sort(() => Math.random() - 0.5).slice(0, count);
+  const teams = shuffle(TEAMS[league]).slice(0, count);
   const offers = teams.map((t) => makeOffer(player, league, t, 0.85));
   pushChoiceFirst(player, {
     key: "postingOffer",
@@ -209,7 +223,10 @@ function mlbContractEnd(player, report) {
   if (ovr < LEAGUES.MLB.level - 6) {
     // 논텐더: 연봉조정 대신 풀어줌 → 자유계약
     report.specials.push({ key: "nontender", team: player.team });
-    pushChoice(player, faChoice(player, `서비스타임 ${years}년이라 아직 FA가 아니지만, 구단이 연봉조정 대신 논텐더(방출)를 택했어요. 자유롭게 팀을 고를 수 있어요.`));
+    pushChoice(
+      player,
+      faChoice(player, `서비스타임 ${years}년이라 아직 FA가 아니지만, 구단이 연봉조정 대신 논텐더(방출)를 택했어요. 자유롭게 팀을 고를 수 있어요.`),
+    );
     return;
   }
   let salary;
@@ -255,7 +272,9 @@ function hsDraft(player, report) {
     report.specials.push({ key: round === 1 ? "draftTop" : "draft", round, team, bonus: fmtMoney(bonus) });
     pushChoice(player, {
       key: "draftSign",
-      round, team, bonus,
+      round,
+      team,
+      bonus,
       text: `${team}${josaOf(team, "이")} ${round}라운드에 지명했어요! 바로 프로에 갈까요, 지명을 거부하고 대학에 갈까요?`,
       options: [
         { id: "sign", label: `${team} 입단`, detail: `계약금 ${fmtMoney(bonus)} · FA까지 1군 ${FA_RULES.hsGrad}시즌` },

@@ -1,5 +1,5 @@
 // =============================================
-// extra.js : v15 추가 기능
+// extra.js : 부상·월별 성적·트레이드·FA 협상·현역 연장 등
 // 1. 숨은 특성 추가 (유리몸, 특정 계절에 강함) + 부상 정도
 // 2. 월별 성적
 // 3. 포스트시즌 기록 따로
@@ -17,7 +17,7 @@
 const SEASON_TRAITS = {
   spring: { months: [3, 4, 5], nick: "봄의 사나이", label: "시즌 초반" },
   summer: { months: [6, 7, 8], nick: "여름 사나이", label: "한여름" },
-  fall:   { months: [9, 10], nick: "가을 사나이", label: "시즌 막판" },
+  fall: { months: [9, 10], nick: "가을 사나이", label: "시즌 막판" },
 };
 
 // 예전 저장 데이터에도 새 숨은 특성을 채워줌 (플레이어한텐 끝까지 안 보여줌)
@@ -42,12 +42,15 @@ function initExtra(player) {
 function rollInjury(player, report, chance) {
   const glass = player.hidden && player.hidden.glass;
   if (glass) chance = chance * 2.4 + 0.05;
-  if (Math.random() >= chance) return 1;
-  const severe = Math.random() < (glass ? 0.75 : 0.5);
+  const forced = forcedInjury(player); // 재활 재발·숨긴 통증 (body.js)
+  if (!forced && Math.random() >= chance) return 1;
+  const severe = forced ? Math.random() < 0.6 : Math.random() < (glass ? 0.75 : 0.5);
   const factor = severe ? 0.4 + Math.random() * 0.35 : 0.84 + Math.random() * 0.1;
+  const part = forced || injuryPart(player); // 다쳤던 부위가 또 다치기 쉬움
+  logInjury(player, part, severe);
   report.events.push(severe ? "장기 부상" : "부상");
-  report.specials.push({ key: severe && glass ? "glassHurt" : "injury" });
-  report.injury = { severe, glass };
+  report.specials.push({ key: forced ? "reinjury" : severe && glass ? "glassHurt" : "injury", part });
+  report.injury = { severe, glass, part, again: (player.injuryLog[part] || 0) >= 2 };
   return factor;
 }
 
@@ -64,8 +67,14 @@ function serviceShortNotice(player, report, days) {
   report.bigMoments = report.bigMoments || [];
   const left = seasonsToFa(player);
   report.bigMoments.push({
-    tone: "bad", kicker: "1군 등록일수 부족", title: "⏳ FA가 1년 밀렸어요",
-    lines: [`부상으로 1군 등록 ${days}일 (기준 145일)`, `이번 시즌은 FA 시즌으로 안 쳐줌 · FA까지 1군 ${left}시즌 남음`],
+    tone: "bad",
+    kicker: "1군 등록일수 부족",
+    title: "⏳ FA가 늦어질 수 있어요",
+    lines: [
+      `부상으로 1군 등록 ${days}일 (기준 145일)`,
+      `이번 시즌은 FA 시즌으로 안 쳐줌 · FA까지 1군 ${left}시즌 남음`,
+      `모자란 일수는 쌓아 뒀다가 145일 차면 1시즌으로 인정 (지금 ${player.kboDaysBank || 0}일)`,
+    ],
   });
   return true;
 }
@@ -157,7 +166,8 @@ function postseasonStats(player, report, mod) {
   }
   report.psWAR = round((report.psBat ? report.psBat.WAR : 0) + (report.psPit ? report.psPit.WAR : 0), 1);
   // 가을에 미친 활약이면 팬 반응
-  const b = report.psBat, p = report.psPit;
+  const b = report.psBat,
+    p = report.psPit;
   if ((b && b.PA >= 12 && b.OPS >= 1.0) || (p && p.outs >= 18 && p.ERA <= 1.5)) report.specials.push({ key: "autumnHot" });
 }
 
@@ -169,10 +179,12 @@ function psTotals(player) {
 }
 
 function psStatHtml(report) {
-  const b = report.psBat, p = report.psPit;
+  const b = report.psBat,
+    p = report.psPit;
   let html = "";
   if (b) html += `<p class="small">🍂 가을야구 타격: ${b.G}경기 타율 ${fmtRate(b.AVG)} · ${b.HR}홈런 ${b.RBI}타점 · OPS ${fmtRate(b.OPS)}</p>`;
-  if (p) html += `<p class="small">🍂 가을야구 투구: ${p.G}경기 ${fmtInnings(p.outs)}이닝 ${p.W}승 ${p.L}패${p.SV ? ` ${p.SV}세이브` : ""}${p.HLD ? ` ${p.HLD}홀드` : ""} · 평균자책 ${p.ERA.toFixed(2)} · ${p.K}삼진</p>`;
+  if (p)
+    html += `<p class="small">🍂 가을야구 투구: ${p.G}경기 ${fmtInnings(p.outs)}이닝 ${p.W}승 ${p.L}패${p.SV ? ` ${p.SV}세이브` : ""}${p.HLD ? ` ${p.HLD}홀드` : ""} · 평균자책 ${p.ERA.toFixed(2)} · ${p.K}삼진</p>`;
   return html;
 }
 
@@ -218,13 +230,13 @@ function nationalRecordHtml(player) {
     html += pitRow("국가대표 통산", "", totalsAsPit(careerTotals(nat)), "total");
     html += "</table></div>";
   }
-  const medals = ["금메달", "은메달", "동메달"].map((m) => [m, list.filter((n) => n.result === m).length]).filter(([, c]) => c);
+  const medals = ["금메달", "은메달", "동메달", "우승", "준우승", "4강"].map((m) => [m, list.filter((n) => n.result === m).length]).filter(([, c]) => c);
   html += `<p class="small">대회 ${list.length}번 출전${medals.length ? ` · ${medals.map(([m, c]) => `${m} ${c}`).join(" · ")}` : ""} (국대 경기는 WAR 없음)</p>`;
   return html;
 }
 
 function medalIcon(result) {
-  return { 금메달: "🥇", 은메달: "🥈", 동메달: "🥉" }[result] || "";
+  return { 금메달: "🥇", 은메달: "🥈", 동메달: "🥉", 우승: "🏆", 준우승: "🥈", "4강": "🏅" }[result] || "";
 }
 
 // ---------------------------------------------
@@ -251,7 +263,8 @@ function historicMoment(player, report) {
     report.events = report.events.map((e) => (e === "역사적 시즌" ? "커리어 하이 페이스" : e));
     return;
   }
-  const b = report.bat, p = report.pit;
+  const b = report.bat,
+    p = report.pit;
   const lines = [];
   if (b && b.G) {
     lines.push(`타율 ${fmtRate(b.AVG)} · ${b.HR}홈런 · ${b.RBI}타점 · ${b.SB}도루`);
@@ -294,6 +307,7 @@ function doTrade(player, report, when) {
   player.team = to;
   if (player.contract) player.contract.team = to;
   player.traded = true;
+  player.moveKind = "trade"; // 팬심 계산용 (fandom.js)
   player.forcedTrades = (player.forcedTrades || 0) + 1;
   player.starterPromise = false;
   player.restPlan = null;
@@ -301,7 +315,8 @@ function doTrade(player, report, when) {
   report.specials.push({ key: when === "mid" ? "tradeMid" : "tradeAfter", from, team: to });
   report.bigMoments = report.bigMoments || [];
   report.bigMoments.push({
-    tone: "bad", kicker: when === "mid" ? "시즌 도중 트레이드" : "비시즌 트레이드",
+    tone: "bad",
+    kicker: when === "mid" ? "시즌 도중 트레이드" : "비시즌 트레이드",
     title: "📦 트레이드 통보",
     lines: [`${from} → ${to}`, when === "mid" ? "트레이드 마감 직전, 짐 싸서 바로 이동" : "구단이 내 의사와 상관없이 결정했어요"],
   });
@@ -312,7 +327,7 @@ function doTrade(player, report, when) {
 function maybeMidTrade(player, report) {
   const lr = player.lastReport;
   if (!lr || player.league !== "KBO" || !tradeable(player) || !isBenchRole(lr) || lr.league !== "KBO") return;
-  if (Math.random() >= 0.04) return;
+  if (Math.random() >= 0.04 * fanTradeMul(player)) return; // 팬심 높으면 덜 됨 (fandom.js)
   const { from, to } = doTrade(player, report, "mid");
   report.team = to;
   report.tradedFrom = from;
@@ -323,7 +338,7 @@ function maybeMidTrade(player, report) {
 function maybeAfterTrade(player, report) {
   if (report.tradedFrom || !tradeable(player) || !isBenchRole(report) || report.WAR >= 0.6) return;
   if (player.pendingChoice && player.pendingChoice.key === "fa") return;
-  if (Math.random() >= 0.08) return;
+  if (Math.random() >= 0.08 * fanTradeMul(player)) return;
   doTrade(player, report, "after");
 }
 
@@ -383,7 +398,7 @@ function offerLabel(player, o) {
 
 function offerDetail(player, o) {
   const back = o.league === "KBO" && ["MLB", "NPB", "MILB"].includes(player.league) && player.age >= 31;
-  return `${o.agentFound ? "🕴️ 에이전트가 물어온 제안 · " : ""}${o.need ? `🔥 ${o.need} 급구 · ` : ""}${back ? "KBO 복귀 · " : ""}${o.mega ? "💰 메가 계약 · " : ""}${o.veteran ? (o.years === 2 ? "1+1년 (베테랑 단기 계약) · " : "1년 단기 계약 · ") : ""}${o.years}년 총액 ${fmtMoney(o.total)}${o.bonus ? ` · 계약금 ${fmtMoney(o.bonus)}` : ""} · 연봉 ${fmtMoney(o.salary)}${o.change ? ` · ${o.change}` : ""}`;
+  return `${faPathTags(o)}${o.agentFound ? "🕴️ 에이전트가 물어온 제안 · " : ""}${o.need ? `🔥 ${o.need} 급구 · ` : ""}${back ? "KBO 복귀 · " : ""}${o.mega ? "💰 메가 계약 · " : ""}${o.veteran ? (o.years === 2 ? "1+1년 (베테랑 단기 계약) · " : "1년 단기 계약 · ") : ""}${o.years}년 총액 ${fmtMoney(o.total)}${o.bonus ? ` · 계약금 ${fmtMoney(o.bonus)}` : ""} · 연봉 ${fmtMoney(o.salary)}${o.change ? ` · ${o.change}` : ""}`;
 }
 
 // 협상 가능한 팀: 원소속팀, 내 자리가 급한 팀
@@ -395,8 +410,14 @@ function negotiable(player, o) {
 // 협상 테이블 버튼 (FA 선택지 아래에 붙음)
 function faTableOptions(player, offers, table) {
   const opts = [];
-  if (table.waits < 2) opts.push({ id: "wait", label: "⏳ 시장 더 지켜보기", detail: `제안이 오를 수도, 다른 FA를 잡고 빠질 수도 있어요 · 남은 기회 ${2 - table.waits}번` });
-  if (offers.some((o) => negotiable(player, o))) opts.push({ id: "negotiate", label: "🤝 협상 테이블", detail: player.agent ? `${player.agent.name}가 모든 구단과 조건 담판` : "원소속팀이나 나를 꼭 원하는 팀과 직접 조건 담판" });
+  if (table.waits < 2)
+    opts.push({ id: "wait", label: "⏳ 시장 더 지켜보기", detail: `제안이 오를 수도, 다른 FA를 잡고 빠질 수도 있어요 · 남은 기회 ${2 - table.waits}번` });
+  if (offers.some((o) => negotiable(player, o)))
+    opts.push({
+      id: "negotiate",
+      label: "🤝 협상 테이블",
+      detail: player.agent ? `${player.agent.name}가 모든 구단과 조건 담판` : "원소속팀이나 나를 꼭 원하는 팀과 직접 조건 담판",
+    });
   return opts;
 }
 
@@ -408,7 +429,8 @@ function waitMarket(player, offers) {
   const next = [];
   for (const o of offers) {
     const r = Math.random();
-    if (!o.need && o.team !== player.team && r < agentWithdraw(player)) { // 에이전트 있으면 덜 빠짐
+    if (!o.need && o.team !== player.team && r < agentWithdraw(player)) {
+      // 에이전트 있으면 덜 빠짐
       lines.push(`${o.team}, 다른 FA와 계약하며 철수`);
       continue;
     }
@@ -451,6 +473,7 @@ function negoChance(player, o) {
   let c = 0.4 + (o.need ? 0.2 : 0) + (o.team === player.team && isFranchiseHere(player) ? 0.15 : 0);
   c += (player.fame || 0) / 250 + (recentWar(player) - 2.5) * 0.04;
   c += agentNegoBonus(player); // 에이전트 협상력
+  c += fanNegoBonus(player, o.team); // 원소속팀 팬심 (fandom.js)
   return clamp(c, 0.15, 0.85);
 }
 
@@ -463,10 +486,14 @@ function faNegoChoice(player, choice) {
     offers,
     text: "🤝 협상 테이블. 어느 팀과 담판 지을까요? 욕심내면 판이 깨질 수도 있어요.",
     options: [
-      ...offers.map((o, i) => ({ o, i })).filter(({ o }) => negotiable(player, o)).map(({ o, i }) => ({
-        id: `nego${i}`, label: `${o.team}에 조건 올려 달라고 하기`,
-        detail: `${o.need ? `${o.need} 급구 · ` : o.team === player.team ? "원소속팀 · " : ""}성공 가능성 ${chanceLabel(negoChance(player, o))}`,
-      })),
+      ...offers
+        .map((o, i) => ({ o, i }))
+        .filter(({ o }) => negotiable(player, o))
+        .map(({ o, i }) => ({
+          id: `nego${i}`,
+          label: `${o.team}에 조건 올려 달라고 하기`,
+          detail: `${o.need ? `${o.need} 급구 · ` : o.team === player.team ? "원소속팀 · " : ""}성공 가능성 ${chanceLabel(negoChance(player, o))}`,
+        })),
       { id: "back", label: "협상 안 하고 돌아가기" },
     ],
   };
@@ -474,6 +501,7 @@ function faNegoChoice(player, choice) {
 
 // FA 선택지 (money.js faChoice가 이걸 씀)
 function buildFaChoice(player, reason, offers, table) {
+  markFaPaths(player, offers); // 💰 최고액 / 🏆 우승 전력 / 🏠 고향 팀 (dilemma.js)
   const options = offers.map((o, i) => ({ id: `offer${i}`, label: offerLabel(player, o), detail: offerDetail(player, o), offer: o }));
   if (player.league === "KBO" || player.league === "KBO2") {
     options.push({ id: "nofile", label: "FA 신청 안 하고 잔류", detail: "원소속팀과 1년 연봉 계약 · FA 자격은 유지돼요" });
@@ -481,7 +509,8 @@ function buildFaChoice(player, reason, offers, table) {
   options.push(...faTableOptions(player, offers, table));
   if (player.age >= 33) options.push({ id: "retire", label: "여기서 은퇴한다" });
   const needs = offers.filter((o) => o.need);
-  const head = needs.length && !table.waits && !table.negos ? `🔥 ${[...new Set(needs.map((o) => o.need))].join("·")}이(가) 급한 팀이 적극적으로 나섰어요. ` : "";
+  const head =
+    needs.length && !table.waits && !table.negos ? `🔥 ${[...new Set(needs.map((o) => o.need))].join("·")}이(가) 급한 팀이 적극적으로 나섰어요. ` : "";
   return { key: "fa", text: head + reason, reason, table, options };
 }
 
@@ -532,6 +561,7 @@ function resolveFaNego(player, choice, option) {
 function recordFaDeal(player, o) {
   player.faEarned = (player.faEarned || 0) + o.total;
   player.faDeals = (player.faDeals || 0) + 1;
+  memeFaSigned(player, o); // 먹튀 감시 (meme.js)
 }
 
 // ---------------------------------------------
@@ -573,14 +603,21 @@ function forcedRetireChoice(player) {
   const ovr = getOvrs(player).best;
   const options = [{ id: "retire", label: "은퇴하기" }];
   if (player.age <= 44 && ovr >= 38 && (player.extended || 0) < 2) {
-    options.push({ id: "extend", label: "현역 연장 (입단 테스트)", detail: `테스트 통과하면 퓨처스 육성 선수, 아니면 독립리그에서 다시 · 통과 가능성 ${chanceLabel(tryoutChance(player))}` });
+    options.push({
+      id: "extend",
+      label: "현역 연장 (입단 테스트)",
+      detail: `테스트 통과하면 퓨처스 육성 선수, 아니면 독립리그에서 다시 · 통과 가능성 ${chanceLabel(tryoutChance(player))}`,
+    });
   }
   // 입단 테스트가 안 되면 이유를 같이 보여줌
   let text = "더 이상 불러주는 팀이 없어요. 유니폼을 벗을까요, 아니면 입단 테스트라도 받아 볼까요?";
   if (options.length === 1) {
-    const why = (player.extended || 0) >= 2 ? "입단 테스트 기회 2번을 이미 다 썼어요"
-      : player.age > 44 ? `${koreanAge(player.age)}세라 입단 테스트를 받아 주는 팀이 없어요 (만 44세까지)`
-      : `OVR ${ovr}로는 입단 테스트 자격이 안 돼요 (OVR 38 이상)`;
+    const why =
+      (player.extended || 0) >= 2
+        ? "입단 테스트 기회 2번을 이미 다 썼어요"
+        : player.age > 44
+          ? `${koreanAge(player.age)}세라 입단 테스트를 받아 주는 팀이 없어요 (만 44세까지)`
+          : `OVR ${ovr}로는 입단 테스트 자격이 안 돼요 (OVR 38 이상)`;
     text = `더 이상 불러주는 팀이 없어요. ${why}. 이제 유니폼을 벗을 시간이에요.`;
   }
   return { key: "forcedRetire", text, options };
@@ -614,13 +651,37 @@ function resolveExtend(player) {
 // 9. 업적
 // ---------------------------------------------
 ACHIEVEMENTS.push(
-  { id: "autumnMan", group: "시즌 기록", name: "가을 사나이", desc: "포스트시즌 통산 OPS .950 이상(40타석+) 또는 평균자책 2.00 이하(20이닝+)", check: (p) => { const t = psTotals(p); return !!t && ((t.PA >= 40 && t.OPS >= 0.95) || (t.outs >= 60 && t.ERA <= 2)); } },
+  {
+    id: "autumnMan",
+    group: "시즌 기록",
+    name: "가을 사나이",
+    desc: "포스트시즌 통산 OPS .950 이상(40타석+) 또는 평균자책 2.00 이하(20이닝+)",
+    check: (p) => {
+      const t = psTotals(p);
+      return !!t && ((t.PA >= 40 && t.OPS >= 0.95) || (t.outs >= 60 && t.ERA <= 2));
+    },
+  },
   { id: "historic", group: "시즌 기록", name: "전설의 시즌", desc: "역사에 남을 시즌 보내기 (극악 확률)", check: (p) => (p.historicSeasons || 0) >= 1 },
   { id: "extend", group: "인생", name: "포기는 없다", desc: "강제 은퇴 위기에서 현역 연장 선택", check: (p) => (p.extended || 0) >= 1 },
   { id: "tryout", group: "인생", name: "입단 테스트 합격", desc: "현역 연장 입단 테스트 통과", check: (p) => !!p.tryoutPassed },
-  { id: "age45", group: "인생", name: "불혹을 넘어", desc: "한국 나이 45세 이상까지 현역", check: (p) => p.history.some((h) => !isAmateur(h.league) && koreanAge(h.age) >= 45) },
+  {
+    id: "age45",
+    group: "인생",
+    name: "불혹을 넘어",
+    desc: "한국 나이 45세 이상까지 현역",
+    check: (p) => p.history.some((h) => !isAmateur(h.league) && koreanAge(h.age) >= 45),
+  },
   { id: "traded", group: "커리어", name: "짐 싸는 날", desc: "본인 의사와 상관없이 트레이드 당하기", check: (p) => (p.forcedTrades || 0) >= 1 },
-  { id: "natStar", group: "수상", name: "국대 에이스", desc: "국가대표 통산 5홈런 또는 20탈삼진", check: (p) => { const l = p.nationalHistory || []; return l.reduce((s, n) => s + (n.bat ? n.bat.HR : 0), 0) >= 5 || l.reduce((s, n) => s + (n.pit ? n.pit.K : 0), 0) >= 20; } },
+  {
+    id: "natStar",
+    group: "수상",
+    name: "국대 에이스",
+    desc: "국가대표 통산 5홈런 또는 20탈삼진",
+    check: (p) => {
+      const l = p.nationalHistory || [];
+      return l.reduce((s, n) => s + (n.bat ? n.bat.HR : 0), 0) >= 5 || l.reduce((s, n) => s + (n.pit ? n.pit.K : 0), 0) >= 20;
+    },
+  },
   { id: "faHaggle", group: "커리어", name: "밀당의 고수", desc: "FA 협상 테이블에서 조건 올리기 성공", check: (p) => !!p.negoWin },
 );
 
@@ -669,7 +730,8 @@ function standingsTabHtml(player, pick) {
   const seasons = player.history.filter((h) => h.standing);
   if (!seasons.length) return "<p class='empty'>아직 순위 기록이 없어요. (고교는 주말리그라 빠짐)</p>";
   const last = player.history[player.history.length - 1];
-  let html = "<h4>내 팀 역대 순위</h4><div class='scroll'><table class='stat-table rank-table'><tr><th class='sticky'>연도</th><th>리그</th><th>팀</th><th>순위</th><th>승-패</th><th>승률</th><th>가을</th><th>우승팀</th></tr>";
+  let html =
+    "<h4>내 팀 역대 순위</h4><div class='scroll'><table class='stat-table rank-table'><tr><th class='sticky'>연도</th><th>리그</th><th>팀</th><th>순위</th><th>승-패</th><th>승률</th><th>가을</th><th>우승팀</th></tr>";
   for (const h of seasons) {
     const s = h.standing;
     const champ = seasonChamp(player, h, h === last);
@@ -692,8 +754,9 @@ function standingsTabHtml(player, pick) {
   html += `<div class="scroll"><table class="stat-table rank-table rank-hist"><tr><th class="sticky">연도</th>${Array.from({ length: width }, (_, i) => `<th>${i + 1}위</th>`).join("")}<th>우승</th></tr>`;
   for (const h of list) {
     const champ = seasonChamp(player, h, h === last);
-    html += `<tr><td class="sticky">${h.year}${h.standing.group ? `<br><small>${h.standing.group}</small>` : ""}</td>${groupTable(h).map((t) =>
-      `<td class="${t.team === h.team ? "me" : ""}">${shortTeam(t.team)}<br><small>${t.w}-${t.l}${t.seed ? " ●" : ""}</small></td>`).join("")}${"<td></td>".repeat(width - groupTable(h).length)}
+    html += `<tr><td class="sticky">${h.year}${h.standing.group ? `<br><small>${h.standing.group}</small>` : ""}</td>${groupTable(h)
+      .map((t) => `<td class="${t.team === h.team ? "me" : ""}">${shortTeam(t.team)}<br><small>${t.w}-${t.l}${t.seed ? " ●" : ""}</small></td>`)
+      .join("")}${"<td></td>".repeat(width - groupTable(h).length)}
       <td>${champ ? (champ === "?" ? "?" : `🏆 ${shortTeam(champ)}`) : "-"}</td></tr>`;
   }
   html += "</table></div><p class='small'>● 가을야구(포스트시즌) 진출 · 금색 칸이 우리 팀 · MLB·NPB·퓨처스는 그해 우리 조·지구 기준</p>";
@@ -710,7 +773,10 @@ function standingsTabHtml(player, pick) {
       const g = groupOf(h.league, t.team);
       const rank = (g ? all.filter((x) => g.teams.includes(x.team)) : all).sort((a, b) => b.w - a.w).findIndex((x) => x.team === t.team) + 1;
       const r = teams[t.team] || (teams[t.team] = { n: 0, rank: 0, first: 0, ps: 0, champ: 0, w: 0, l: 0 });
-      r.n++; r.rank += rank; r.w += t.w; r.l += t.l;
+      r.n++;
+      r.rank += rank;
+      r.w += t.w;
+      r.l += t.l;
       if (rank === 1) r.first++;
       if (t.seed) r.ps++;
       if (champ === t.team) r.champ++;

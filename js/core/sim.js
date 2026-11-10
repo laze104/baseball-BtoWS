@@ -4,17 +4,6 @@
 // 시즌 기록을 만듦
 // =============================================
 
-// 값을 min~max 사이로 고정
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-// 소수점 자리 맞추기: round(0.31234, 3) → 0.312
-function round(value, digits) {
-  const p = Math.pow(10, digits);
-  return Math.round(value * p) / p;
-}
-
 // 야구식 비율 표기: 0.312 → ".312", 1.05 → "1.050"
 function fmtRate(value) {
   const text = value.toFixed(3);
@@ -40,16 +29,16 @@ function diff(stat, level) {
 // hold: 불펜이 홀드 상황에 나오는 비율 (NPB는 셋업맨 홀드가 많음)
 // ---------------------------------------------
 const LEAGUE_ENV = {
-  HS:      { hit: 1.0,  hr: 0.55, k: 0.9,  bb: 1.25, ops: 0.72,  era: 4.0, hold: 0.45 , ph: 1.0 },
-  COLLEGE: { hit: 1.0,  hr: 0.7,  k: 0.95, bb: 1.2,  ops: 0.73,  era: 4.4, hold: 0.45 , ph: 1.02 },
-  INDIE:   { hit: 1.04, hr: 0.8,  k: 0.95, bb: 1.2,  ops: 0.75,  era: 5.2, hold: 0.45 , ph: 1.12 },
-  ABL:     { hit: 1.03, hr: 0.9,  k: 1.0,  bb: 1.1,  ops: 0.74,  era: 4.8, hold: 0.45 , ph: 1.09 },
-  KBO2:    { hit: 1.06, hr: 0.85, k: 0.95, bb: 1.15, ops: 0.75,  era: 5.0, hold: 0.45 , ph: 1.13 },
-  SANGMU:  { hit: 1.06, hr: 0.85, k: 0.95, bb: 1.15, ops: 0.75,  era: 5.0, hold: 0.45 , ph: 1.13 },
-  KBO:     { hit: 1.06, hr: 1.0,  k: 0.95, bb: 1.05, ops: 0.76,  era: 4.5, hold: 0.45 , ph: 1.05 },
-  NPB:     { hit: 0.96, hr: 0.75, k: 1.08, bb: 0.95, ops: 0.66,  era: 3.2, hold: 0.6 , ph: 1.07 },
-  MLB:     { hit: 0.97, hr: 1.3,  k: 1.18, bb: 0.95, ops: 0.715, era: 4.1, hold: 0.45 , ph: 1.08 },
-  MILB:    { hit: 1.02, hr: 1.15, k: 1.12, bb: 1.1,  ops: 0.75,  era: 4.8, hold: 0.45 , ph: 1.1 },
+  HS: { hit: 1.0, hr: 0.55, k: 0.9, bb: 1.25, ops: 0.72, era: 4.0, hold: 0.45, ph: 1.0 },
+  COLLEGE: { hit: 1.0, hr: 0.7, k: 0.95, bb: 1.2, ops: 0.73, era: 4.4, hold: 0.45, ph: 1.02 },
+  INDIE: { hit: 1.04, hr: 0.8, k: 0.95, bb: 1.2, ops: 0.75, era: 5.2, hold: 0.45, ph: 1.12 },
+  ABL: { hit: 1.03, hr: 0.9, k: 1.0, bb: 1.1, ops: 0.74, era: 4.8, hold: 0.45, ph: 1.09 },
+  KBO2: { hit: 1.06, hr: 0.85, k: 0.95, bb: 1.15, ops: 0.75, era: 5.0, hold: 0.45, ph: 1.13 },
+  SANGMU: { hit: 1.06, hr: 0.85, k: 0.95, bb: 1.15, ops: 0.75, era: 5.0, hold: 0.45, ph: 1.13 },
+  KBO: { hit: 1.06, hr: 1.0, k: 0.95, bb: 1.05, ops: 0.76, era: 4.5, hold: 0.45, ph: 1.05 },
+  NPB: { hit: 0.96, hr: 0.75, k: 1.08, bb: 0.95, ops: 0.66, era: 3.2, hold: 0.6, ph: 1.07 },
+  MLB: { hit: 0.97, hr: 1.3, k: 1.18, bb: 0.95, ops: 0.715, era: 4.1, hold: 0.45, ph: 1.08 },
+  MILB: { hit: 1.02, hr: 1.15, k: 1.12, bb: 1.1, ops: 0.75, era: 4.8, hold: 0.45, ph: 1.1 },
 };
 const NEUTRAL_ENV = { hit: 1, hr: 1, k: 1, bb: 1, ops: 0.72, era: 4.4, hold: 0.45 };
 
@@ -64,13 +53,13 @@ function simBattingSeason(stats, level, games, paPerGame, mod, position, env) {
   const L = level;
 
   // 타석 결과 확률
-  const pK = clamp((0.20 - 0.20 * diff(s("eye"), L) - 0.10 * diff(s("contact"), L)) * env.k, 0.05, 0.42);
-  const pBB = clamp((0.085 + 0.09 * diff(s("eye"), L)) * env.bb, 0.02, 0.20);
+  const pK = clamp((0.2 - 0.2 * diff(s("eye"), L) - 0.1 * diff(s("contact"), L)) * env.k, 0.05, 0.42);
+  const pBB = clamp((0.085 + 0.09 * diff(s("eye"), L)) * env.bb, 0.02, 0.2);
   const pHBP = 0.01;
   const pHitInPlay = clamp((0.33 + 0.18 * diff(s("contact"), L) + 0.04 * diff(s("speed"), L)) * env.hit, 0.18, 0.41);
-  const pHR = clamp((0.10 + 0.32 * diff(s("power"), L)) * env.hr, 0.01, 0.42); // 안타 중 홈런 비율
+  const pHR = clamp((0.1 + 0.32 * diff(s("power"), L)) * env.hr, 0.01, 0.42); // 안타 중 홈런 비율
   const p3B = clamp(0.015 + 0.03 * diff(s("speed"), L), 0.002, 0.06);
-  const p2B = clamp(0.19 + 0.10 * diff(s("power"), L), 0.10, 0.30);
+  const p2B = clamp(0.19 + 0.1 * diff(s("power"), L), 0.1, 0.3);
   const pScore = clamp(0.32 + 0.25 * diff(s("speed"), L), 0.2, 0.5); // 출루 후 득점 확률
   const clutchBonus = 1 + 1.5 * diff(s("clutch"), L);
 
@@ -83,9 +72,11 @@ function simBattingSeason(stats, level, games, paPerGame, mod, position, env) {
     let onFirst = false;
 
     if (roll < pK) {
-      r.AB++; r.K++;
+      r.AB++;
+      r.K++;
     } else if (roll < pK + pBB) {
-      r.BB++; onFirst = true;
+      r.BB++;
+      onFirst = true;
     } else if (roll < pK + pBB + pHBP) {
       onFirst = true;
     } else {
@@ -94,7 +85,8 @@ function simBattingSeason(stats, level, games, paPerGame, mod, position, env) {
         r.H++;
         const t = Math.random();
         if (t < pHR) {
-          r.HR++; r.R++;
+          r.HR++;
+          r.R++;
           r.RBI += 1 + (Math.random() < 0.55 ? 1 : 0) + (Math.random() < 0.15 ? 1 : 0);
         } else if (t < pHR + p3B) {
           r.T++;
@@ -150,9 +142,13 @@ function simPitchingSeason(stats, level, role, games, mod, env) {
   const relief = role === "starter" ? 0 : 1; // 불펜은 짧게 전력투구라 조금 더 강함
   const ph = env.ph || 1.12; // 투수 쪽 피안타 보정 (리그 평균자책을 맞추는 값)
 
-  const pK = clamp((0.18 + 0.22 * diff(s("velocity"), L) + 0.08 * diff(s("stuff"), L) + 0.06 * diff(s("breaking"), L)) * env.k * (1 + relief * 0.15), 0.06, 0.45);
-  const pBB = clamp((0.10 - 0.09 * diff(s("control"), L)) * env.bb, 0.02, 0.18);
-  const pHitInPlay = clamp((0.34 - 0.10 * diff(s("breaking"), L) - 0.05 * diff(s("fielding"), L)) * env.hit * ph * (1 - relief * 0.13), 0.18, 0.42);
+  const pK = clamp(
+    (0.18 + 0.22 * diff(s("velocity"), L) + 0.08 * diff(s("stuff"), L) + 0.06 * diff(s("breaking"), L)) * env.k * (1 + relief * 0.15),
+    0.06,
+    0.45,
+  );
+  const pBB = clamp((0.1 - 0.09 * diff(s("control"), L)) * env.bb, 0.02, 0.18);
+  const pHitInPlay = clamp((0.34 - 0.1 * diff(s("breaking"), L) - 0.05 * diff(s("fielding"), L)) * env.hit * ph * (1 - relief * 0.13), 0.18, 0.42);
   const pHR = clamp((0.14 - 0.12 * diff(s("stuff"), L)) * env.hr * ph * (1 - relief * 0.2), 0.02, 0.3);
   const pressure = 0.3 * diff(s("mental"), L); // 주자 있을 때 멘탈 보정
 
@@ -169,7 +165,8 @@ function simPitchingSeason(stats, level, role, games, mod, env) {
     }
 
     // 이닝 진행
-    let outs = 0, runs = 0;
+    let outs = 0,
+      runs = 0;
     let bases = [false, false, false]; // 1루, 2루, 3루
     while (outs < targetOuts) {
       const runnersOn = bases[1] || bases[2];
@@ -177,7 +174,8 @@ function simPitchingSeason(stats, level, role, games, mod, env) {
       const roll = Math.random();
 
       if (roll < pK + p * 0.3) {
-        r.K++; outs++;
+        r.K++;
+        outs++;
       } else if (roll < pK + pBB - p * 0.3) {
         r.BB++;
         // 밀어내기
@@ -190,7 +188,9 @@ function simPitchingSeason(stats, level, role, games, mod, env) {
         const t = Math.random();
         const onBase = bases.filter(Boolean).length;
         if (t < pHR) {
-          r.HR++; runs += onBase + 1; bases = [false, false, false];
+          r.HR++;
+          runs += onBase + 1;
+          bases = [false, false, false];
         } else if (t < pHR + 0.2) {
           // 2루타: 2,3루 주자 득점, 1루 주자는 45% 득점 아니면 3루로
           runs += (bases[1] ? 1 : 0) + (bases[2] ? 1 : 0);
@@ -212,8 +212,14 @@ function simPitchingSeason(stats, level, role, games, mod, env) {
       } else {
         // 인플레이 아웃: 2아웃 전이면 3루 주자 50% 득점(희생플라이·땅볼), 2루 주자 40% 진루
         if (outs % 3 < 2) {
-          if (bases[2] && Math.random() < 0.5) { runs++; bases[2] = false; }
-          if (bases[1] && !bases[2] && Math.random() < 0.4) { bases[2] = true; bases[1] = false; }
+          if (bases[2] && Math.random() < 0.5) {
+            runs++;
+            bases[2] = false;
+          }
+          if (bases[1] && !bases[2] && Math.random() < 0.4) {
+            bases[2] = true;
+            bases[1] = false;
+          }
         }
         outs++;
       }
@@ -234,15 +240,17 @@ function simPitchingSeason(stats, level, role, games, mod, env) {
       if (outs >= 15 && support > runs) {
         if (Math.random() < 0.85) r.W++; // 불펜이 가끔 승리를 날림
       } else if (runs > support && teamRuns <= runs) {
-        if (Math.random() < 0.9) r.L++;  // 끝까지 못 뒤집으면 패전
+        if (Math.random() < 0.9) r.L++; // 끝까지 못 뒤집으면 패전
       }
     } else if (role === "closer" || Math.random() < env.hold) {
       // 리드 상황 등판: 마무리는 세이브, 셋업맨은 홀드 (1~3점 차)
       const lead = [1, 1, 2, 2, 3][randomInt(0, 4)];
       const saveSpot = role !== "closer" || Math.random() < 0.65;
       if (saveSpot) {
-        if (runs < lead) { if (role === "closer") r.SV++; else r.HLD++; }
-        else if (runs > lead && Math.random() < 0.6) r.L++;
+        if (runs < lead) {
+          if (role === "closer") r.SV++;
+          else r.HLD++;
+        } else if (runs > lead && Math.random() < 0.6) r.L++;
         else if (runs === lead && Math.random() < 0.2) r.W++; // 블론 후 타선이 뒤집어 주면 승리
       } else if (Math.random() < 0.5) {
         // 마무리가 동점 상황에 나오는 경우
@@ -276,9 +284,7 @@ function averageSeasons(a, b, isBat) {
   for (const k of Object.keys(a)) {
     if (typeof a[k] === "number" && typeof b[k] === "number") r[k] = (a[k] + b[k]) / 2;
   }
-  const ints = isBat
-    ? ["PA", "AB", "H", "D", "T", "HR", "RBI", "R", "SB", "BB", "K"]
-    : ["W", "L", "SV", "HLD", "outs", "H", "HR", "BB", "K", "R", "ER"];
+  const ints = isBat ? ["PA", "AB", "H", "D", "T", "HR", "RBI", "R", "SB", "BB", "K"] : ["W", "L", "SV", "HLD", "outs", "H", "HR", "BB", "K", "R", "ER"];
   for (const k of ints) r[k] = Math.round(r[k]);
   r.G = a.G;
   if (isBat) {
@@ -327,10 +333,10 @@ function pitBabip(r) {
 // 포지션마다 공이 오는 횟수, 실책 나오는 비율이 다름 (3루·유격수가 실책 많음)
 // ---------------------------------------------
 const FIELD_POS = {
-  "포수":   { ch: 7.4, err: 0.008 },
-  "1루수":  { ch: 8.8, err: 0.006 },
-  "2루수":  { ch: 4.9, err: 0.02 },
-  "3루수":  { ch: 2.7, err: 0.036 },
+  "포수": { ch: 7.4, err: 0.008 },
+  "1루수": { ch: 8.8, err: 0.006 },
+  "2루수": { ch: 4.9, err: 0.02 },
+  "3루수": { ch: 2.7, err: 0.036 },
   "유격수": { ch: 4.4, err: 0.034 },
   "외야수": { ch: 2.1, err: 0.012 },
 };

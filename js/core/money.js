@@ -38,9 +38,17 @@ function fmtMoney(won) {
 // 리그 최저 연봉 (물가 반영)
 function minSalary(league, player) {
   const base = {
-    HS: 0, COLLEGE: 0, INDIE: MONEY.indieSalary, ABL: MONEY.ablSalary,
-    KBO2: MONEY.futuresMin, KBO: MONEY.kboMin, NPB: 15000, MLB: MONEY.mlbMin, MILB: 5000,
-    SANGMU: MONEY.sangmuSalary, SOCIAL: MONEY.socialSalary,
+    HS: 0,
+    COLLEGE: 0,
+    INDIE: MONEY.indieSalary,
+    ABL: MONEY.ablSalary,
+    KBO2: MONEY.futuresMin,
+    KBO: MONEY.kboMin,
+    NPB: 15000,
+    MLB: MONEY.mlbMin,
+    MILB: 5000,
+    SANGMU: MONEY.sangmuSalary,
+    SOCIAL: MONEY.socialSalary,
   }[league];
   return Math.round(base * priceIndex(player));
 }
@@ -113,8 +121,10 @@ function offerYears(player) {
   const age = player.age;
   const war = recentWar(player);
   let [min, max] = age <= 28 ? [4, 6] : age <= 31 ? [3, 5] : age <= 34 ? [2, 4] : age <= 37 ? [1, 3] : [1, 2];
-  if (war >= 4) { min++; max++; }
-  else if (war < 1) max = Math.max(min, max - 1);
+  if (war >= 4) {
+    min++;
+    max++;
+  } else if (war < 1) max = Math.max(min, max - 1);
   if (age >= 38) max = Math.min(max, 2);
   return randomInt(min, Math.min(max, 6));
 }
@@ -139,7 +149,7 @@ function generateOffers(player) {
   const grade = isKboFa ? faGrade(player) : null;
   if (grade === "A") kboCount -= 1;
   if (grade === "C") kboCount += 1;
-  let kboTeams = [...TEAMS.KBO].sort(() => Math.random() - 0.5);
+  let kboTeams = shuffle(TEAMS.KBO);
   if (isKboFa && !kboTeams.slice(0, kboCount).includes(player.team)) {
     kboTeams.unshift(player.team); // 원소속팀은 항상 제안
   }
@@ -147,7 +157,7 @@ function generateOffers(player) {
   if (!isKboFa && player.kboRights) kboTeams = [player.kboRights];
   for (const team of kboTeams.slice(0, Math.max(1, kboCount))) {
     // 원소속팀 우대: 프랜차이즈 스타면 30% 더
-    const homeFactor = isFranchiseHere(player) ? 1.3 : 1.05;
+    const homeFactor = (isFranchiseHere(player) ? 1.3 : 1.05) * fanStayFactor(player); // 팬심 높으면 원소속팀이 더 잡으려 함 (fandom.js)
     const otherFactor = grade === "A" ? 0.95 : 1; // 보상 부담만큼 조금 깎음
     offers.push(makeOffer(player, "KBO", team, team === player.team ? homeFactor : otherFactor));
   }
@@ -165,12 +175,13 @@ function generateOffers(player) {
     return o;
   };
   if (ovr >= 69 || (buzz && ovr >= 60)) {
-    for (const team of [...TEAMS.NPB].sort(() => Math.random() - 0.5).slice(0, ovr >= 72 || (buzz && buzz.strong) ? 2 : 1)) {
+    for (const team of shuffle(TEAMS.NPB).slice(0, ovr >= 72 || (buzz && buzz.strong) ? 2 : 1)) {
       offers.push(overseasOffer("NPB", team));
     }
   }
-  if (ovr >= 72 || (buzz && ovr >= (buzz.npb ? 61 : 64))) { // NPB에서 통했으면 MLB 문턱이 더 낮음
-    for (const team of [...TEAMS.MLB].sort(() => Math.random() - 0.5).slice(0, ovr >= 78 ? 3 : ovr >= 75 || (buzz && buzz.strong) ? 2 : 1)) {
+  if (ovr >= 72 || (buzz && ovr >= (buzz.npb ? 61 : 64))) {
+    // NPB에서 통했으면 MLB 문턱이 더 낮음
+    for (const team of shuffle(TEAMS.MLB).slice(0, ovr >= 78 ? 3 : ovr >= 75 || (buzz && buzz.strong) ? 2 : 1)) {
       offers.push(overseasOffer("MLB", team));
     }
   }
@@ -178,13 +189,14 @@ function generateOffers(player) {
   // (MLB FA, 또는 NPB를 폭격하고 넘어오는 경우)
   const war = recentWar(player);
   const mlbLv = LEAGUES.MLB.level;
-  const megaOk = player.age <= 31 && ovr >= mlbLv + 3 &&
-    ((player.league === "MLB" && (war >= 6 || (war >= 4.5 && ovr >= mlbLv + 12))) ||
-     (player.league === "NPB" && buzz && buzz.strong && ovr >= mlbLv + 5));
+  const megaOk =
+    player.age <= 31 &&
+    ovr >= mlbLv + 3 &&
+    ((player.league === "MLB" && (war >= 6 || (war >= 4.5 && ovr >= mlbLv + 12))) || (player.league === "NPB" && buzz && buzz.strong && ovr >= mlbLv + 5));
   if (megaOk) {
     const years = clamp(12 - Math.max(0, player.age - 26), 8, 12);
     const cap = 6000000 * priceIndex(player);
-    for (const team of RICH_TEAMS.filter((t) => t !== player.team).sort(() => Math.random() - 0.5).slice(0, war >= 8 ? 2 : 1)) {
+    for (const team of shuffle(RICH_TEAMS.filter((t) => t !== player.team)).slice(0, war >= 8 ? 2 : 1)) {
       const salary = Math.round(Math.min(cap, marketValue(player, "MLB") * (1.05 + Math.random() * 0.15)));
       offers.push({ league: "MLB", team, years, total: salary * years, bonus: 0, salary, mega: true });
     }
@@ -194,7 +206,18 @@ function generateOffers(player) {
 }
 
 // 돈 많은 MLB 구단 (메가 계약을 내밀 수 있는 팀)
-const RICH_TEAMS = ["LA 다저스", "뉴욕 양키스", "뉴욕 메츠", "필라델피아 필리스", "보스턴 레드삭스", "토론토 블루제이스", "샌디에이고 파드리스", "시카고 컵스", "샌프란시스코 자이언츠", "텍사스 레인저스"];
+const RICH_TEAMS = [
+  "LA 다저스",
+  "뉴욕 양키스",
+  "뉴욕 메츠",
+  "필라델피아 필리스",
+  "보스턴 레드삭스",
+  "토론토 블루제이스",
+  "샌디에이고 파드리스",
+  "시카고 컵스",
+  "샌프란시스코 자이언츠",
+  "텍사스 레인저스",
+];
 
 // 해외 구단이 주목하는 성적인지: 최근 시즌 KBO·NPB에서
 // WAR 5 이상, MVP, 타이틀(홈런왕·세이브왕 등), 또는 마무리로 30세이브 + 평균자책 2점대 초반
@@ -222,7 +245,7 @@ function overseasBuzz(player) {
 function faChoice(player, reason) {
   const ask = agentPitch(player, reason); // FA 대박 예감이면 에이전시가 먼저 찾아옴 (agent.js)
   if (ask) return ask;
-  const offers = agentBoost(player, applyNeeds(player, generateOffers(player)));
+  const offers = addHomeOffer(player, agentBoost(player, applyNeeds(player, generateOffers(player)))); // 고향 팀 연락 (dilemma.js)
   // 베테랑인데 해외 오퍼가 왔으면 크게 알려줌
   const buzz = overseasBuzz(player);
   if (buzz && offers.some((o) => o.veteran)) {

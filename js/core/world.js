@@ -1,5 +1,5 @@
 // =============================================
-// world.js : v9 추가 기능
+// world.js : 순위·시상식·숨은 특성·스태프·마이너리그
 // 1. 지구·리그별 순위와 포스트시즌
 // 2. 시상식 (MVP, 골든글러브, 베스트나인, 실버슬러거, 골드글러브, 투수상, 올스타)
 // 3. 숨은 특성 (회춘형, 해외 체질) - 플레이어에게는 끝까지 안 알려줌
@@ -18,7 +18,7 @@ function initWorld(player) {
   if (!player.hidden) {
     player.hidden = {
       lateBloom: Math.random() < 0.06, // 노경은처럼 늦게 꽃피는 선수
-      overseas: Math.random() < 0.04,  // 류현진처럼 해외에서도 통하는 선수
+      overseas: Math.random() < 0.04, // 류현진처럼 해외에서도 통하는 선수
     };
   }
   if (!player.services) player.services = {};
@@ -55,48 +55,61 @@ function postseasonSeeds(lg, all) {
   if (lg === "KBO2" || lg === "SANGMU") {
     // 퓨처스: 북부·남부리그 1·2위가 챔피언결정전 (준결승 → 단판 결승)
     for (const g of LEAGUE_GROUPS.KBO2) {
-      all.filter((t) => g.teams.includes(t.team)).sort(byWins).slice(0, 2).forEach((t, i) => (seeds[t.team] = i + 1));
+      all
+        .filter((t) => g.teams.includes(t.team))
+        .sort(byWins)
+        .slice(0, 2)
+        .forEach((t, i) => (seeds[t.team] = i + 1));
     }
   } else if (lg === "INDIE") {
     // 경기도 독립리그: 1위 챔피언결정전 직행, 2·3위 플레이오프
-    [...all].sort(byWins).slice(0, 3).forEach((t, i) => (seeds[t.team] = i + 1));
+    [...all]
+      .sort(byWins)
+      .slice(0, 3)
+      .forEach((t, i) => (seeds[t.team] = i + 1));
   } else if (lg === "COLLEGE") {
     // U-리그: 조마다 상위 4팀 왕중왕전 진출
     for (const g of LEAGUE_GROUPS.COLLEGE) {
-      all.filter((t) => g.teams.includes(t.team)).sort(byWins).slice(0, 4).forEach((t, i) => (seeds[t.team] = i + 1));
+      all
+        .filter((t) => g.teams.includes(t.team))
+        .sort(byWins)
+        .slice(0, 4)
+        .forEach((t, i) => (seeds[t.team] = i + 1));
     }
   } else if (lg === "ABL") {
     // 호주리그: 6팀 중 1~4위 플레이오프
-    [...all].sort(byWins).slice(0, 4).forEach((t, i) => (seeds[t.team] = i + 1));
+    [...all]
+      .sort(byWins)
+      .slice(0, 4)
+      .forEach((t, i) => (seeds[t.team] = i + 1));
   } else if (lg === "KBO") {
     // 정규시즌 1~5위 (와일드카드 결정전부터)
-    [...all].sort(byWins).slice(0, 5).forEach((t, i) => (seeds[t.team] = i + 1));
+    [...all]
+      .sort(byWins)
+      .slice(0, 5)
+      .forEach((t, i) => (seeds[t.team] = i + 1));
   } else if (lg === "NPB") {
     // 리그별 1~3위 클라이맥스 시리즈
     for (const g of LEAGUE_GROUPS.NPB) {
-      all.filter((t) => g.teams.includes(t.team)).sort(byWins).slice(0, 3).forEach((t, i) => (seeds[t.team] = i + 1));
+      all
+        .filter((t) => g.teams.includes(t.team))
+        .sort(byWins)
+        .slice(0, 3)
+        .forEach((t, i) => (seeds[t.team] = i + 1));
     }
   } else if (lg === "MLB") {
     // 리그별: 지구 우승 3팀(1~3번 시드) + 와일드카드 3팀(4~6번 시드)
     for (const name of ["아메리칸리그", "내셔널리그"]) {
       const divs = LEAGUE_GROUPS.MLB.filter((g) => g.league === name);
       const winners = divs.map((g) => all.filter((t) => g.teams.includes(t.team)).sort(byWins)[0]).sort(byWins);
-      const rest = all.filter((t) => divs.some((g) => g.teams.includes(t.team)) && !winners.includes(t)).sort(byWins).slice(0, 3);
+      const rest = all
+        .filter((t) => divs.some((g) => g.teams.includes(t.team)) && !winners.includes(t))
+        .sort(byWins)
+        .slice(0, 3);
       [...winners, ...rest].forEach((t, i) => (seeds[t.team] = i + 1));
     }
   }
   return seeds;
-}
-
-// 시드별 우승 확률
-function championChance(lg, seed) {
-  if (!seed) return 0;
-  const table = {
-    KBO: [0.38, 0.24, 0.15, 0.1, 0.07],
-    NPB: [0.28, 0.14, 0.08],
-    MLB: [0.15, 0.13, 0.09, 0.06, 0.05, 0.04],
-  }[lg];
-  return table ? table[seed - 1] || 0 : 0;
 }
 
 function teamStanding(player, report) {
@@ -110,6 +123,7 @@ function teamStanding(player, report) {
     if (lg === "COLLEGE") pct += ((COLLEGES.find((c) => c.name === team) || { tier: 2 }).tier - 2) * 0.06; // 대학은 야구부 전력 차이가 큼
     if (team === player.team) pct += report.WAR * 0.006; // 내 활약이 팀 승률에 보탬
     if (lg === "KBO" && player.managers && player.managers[team] && player.managers[team].legend) pct += 0.015; // 레전드 감독 효과
+    pct += standingBonus(player, team, lg, report.year); // 우승 전력 FA, 선수단 미팅, 신생구단 (flow.js)
     const w = Math.round(games * clamp(pct, 0.3, 0.7));
     return { team, w, l: games - w };
   });
@@ -120,11 +134,25 @@ function teamStanding(player, report) {
   const rank = table.findIndex((t) => t.team === player.team) + 1;
   const mine = table[rank - 1];
   report.standing = {
-    rank, teams: table.length, w: mine.w, l: mine.l, table,
+    rank,
+    teams: table.length,
+    w: mine.w,
+    l: mine.l,
+    table,
     group: group ? group.name : null,
     leagueName: group ? group.league : null,
     seed: mine.seed,
-    psLabel: { KBO: "가을야구", NPB: "클라이맥스 시리즈", MLB: "포스트시즌", ABL: "플레이오프", KBO2: "챔피언결정전", SANGMU: "챔피언결정전", INDIE: "플레이오프", COLLEGE: "왕중왕전" }[lg] || null,
+    psLabel:
+      {
+        KBO: "가을야구",
+        NPB: "클라이맥스 시리즈",
+        MLB: "포스트시즌",
+        ABL: "플레이오프",
+        KBO2: "챔피언결정전",
+        SANGMU: "챔피언결정전",
+        INDIE: "플레이오프",
+        COLLEGE: "왕중왕전",
+      }[lg] || null,
   };
   // 정규시즌 1위는 바로 알려줌 (포스트시즌 우승과는 따로)
   if (rank === 1 && lg !== "HS") {
@@ -139,13 +167,13 @@ function teamStanding(player, report) {
 // 우승 (KBO·NPB·MLB): 포스트시즌 시리즈를 팀 전력(정규시즌 승률)과 내 활약으로 치름
 // 시드가 높을수록 치를 시리즈가 적음 (1위 팀은 바로 한국시리즈 등)
 const PS_ROUNDS = {
-  KBO: [1, 2, 3, 4, 4],          // 1위: 한국시리즈만, 5위: 와일드카드부터
-  NPB: [2, 3, 3],                // 리그 1위: CS 파이널 + 재팬시리즈
-  MLB: [3, 3, 4, 4, 4, 4],       // 1·2번 시드: 와일드카드 시리즈 부전승
-  ABL: [2, 2, 2, 2],             // 준결승 시리즈 + 챔피언십 시리즈
-  KBO2: [2, 2],                  // 준결승 + 단판 결승
+  KBO: [1, 2, 3, 4, 4], // 1위: 한국시리즈만, 5위: 와일드카드부터
+  NPB: [2, 3, 3], // 리그 1위: CS 파이널 + 재팬시리즈
+  MLB: [3, 3, 4, 4, 4, 4], // 1·2번 시드: 와일드카드 시리즈 부전승
+  ABL: [2, 2, 2, 2], // 준결승 시리즈 + 챔피언십 시리즈
+  KBO2: [2, 2], // 준결승 + 단판 결승
   SANGMU: [2, 2],
-  INDIE: [1, 2, 2],              // 1위: 챔피언결정전 직행
+  INDIE: [1, 2, 2], // 1위: 챔피언결정전 직행
 };
 
 function checkChampion(player, report) {
@@ -198,7 +226,8 @@ function impactScore(player, report) {
   s += titles.length * 0.6;
   if (b && b.G) {
     if (b.HR >= line.hr) s += 0.8;
-    if (b.HR >= 40 && b.SB >= 40) s += 2.5; // 40-40
+    if (b.HR >= 40 && b.SB >= 40)
+      s += 2.5; // 40-40
     else if (b.HR >= 30 && b.SB >= 30) s += 1;
     if (b.AVG >= line.avg && b.PA >= LEAGUES[report.league].games * 3.1) s += 0.5;
     if (b.RBI >= line.rbi) s += 0.5;
@@ -342,7 +371,7 @@ function allStar(player, report) {
   const teamPct = st ? st.w / (st.w + st.l) : 0.5;
   const f = teamFandom(report.team) - 3;
   // 팬덤 작은 팀도 감독 추천으로 뽑힐 길이 있어서 불리함은 조금만
-  const fanVote = (f * (f > 0 ? 0.6 : 0.25) + clamp((teamPct - 0.5) * 10, -0.8, 1.3)) * (backup ? 0.3 : 1);
+  const fanVote = (f * (f > 0 ? 0.6 : 0.25) + clamp((teamPct - 0.5) * 10, -0.8, 1.3) + fanVoteBonus(player, report.team)) * (backup ? 0.3 : 1); // 내 팀 팬심 (fandom.js)
   report.fanVote = round(fanVote, 1);
   let score = report.WAR * (report.gameFactor < 1 ? 1.3 : 1) + fame / 50 + fanVote;
   // 이정후처럼 압도적이면 팬덤이 작은 팀이어도 감독 추천·선수단 투표로 무조건 뽑힘
@@ -390,7 +419,12 @@ function maybeRevival(player, report) {
   report.events.push("회춘");
   report.specials.push({ key: "revival" });
   report.bigMoments = report.bigMoments || [];
-  report.bigMoments.push({ tone: "gold", kicker: "믿을 수 없는 일", title: "🔥 회춘!", lines: [`${koreanAge(player.age)}세에 찾아온 제2의 전성기`, "모든 능력치가 크게 올랐어요"] });
+  report.bigMoments.push({
+    tone: "gold",
+    kicker: "믿을 수 없는 일",
+    title: "🔥 회춘!",
+    lines: [`${koreanAge(player.age)}세에 찾아온 제2의 전성기`, "모든 능력치가 크게 올랐어요"],
+  });
 }
 
 // 회춘 기간과 셰프는 노화를 늦춤
@@ -468,7 +502,8 @@ function maybeMlbDirect(player, report) {
   report.specials.push({ key: "mlbScout", team: org });
   pushChoiceFirst(player, {
     key: "mlbDirect",
-    org, bonus,
+    org,
+    bonus,
     text: `🇺🇸 ${org} 스카우트가 직접 찾아왔어요! 졸업하자마자 미국으로 오라는 제안이에요. 마이너리그 ${MILB_AFFILIATE[org]}에서 시작해요.`,
     options: [
       { id: "go", label: `${org}와 계약 (미국 직행)`, detail: `계약금 ${fmtMoney(bonus)} · 마이너리그부터 · 실패하면 KBO 복귀까지 2년 유예` },
@@ -490,10 +525,7 @@ function resolveMlbDirect(player, choice, option) {
   player.overseasAmateur = true;
   player.contract = makeContract("MILB", player.team, 1, minSalary("MILB", player), 0);
   addMoney(player, choice.bonus);
-  return [
-    `[단독] ${player.name}, ${choice.org} 입단! 계약금 ${fmtMoney(choice.bonus)}`,
-    `${player.name}, "꿈의 무대에서 살아남겠다"… ${player.team}에서 첫발`,
-  ];
+  return [`[단독] ${player.name}, ${choice.org} 입단! 계약금 ${fmtMoney(choice.bonus)}`, `${player.name}, "꿈의 무대에서 살아남겠다"… ${player.team}에서 첫발`];
 }
 
 // 마이너리그 시즌이 끝날 때
@@ -507,7 +539,12 @@ function milbTick(player, report) {
     player.contract = makeContract("MLB", player.team, 1, minSalary("MLB", player), 0);
     report.specials.push({ key: "mlbCallup", team: player.team });
     report.bigMoments = report.bigMoments || [];
-    report.bigMoments.push({ tone: "gold", kicker: "THE SHOW", title: "⚾ 메이저리그 콜업!", lines: [`${player.team} 26인 로스터 합류`, `마이너리그 ${player.milbYears}시즌 만의 꿈`] });
+    report.bigMoments.push({
+      tone: "gold",
+      kicker: "THE SHOW",
+      title: "⚾ 메이저리그 콜업!",
+      lines: [`${player.team} 26인 로스터 합류`, `마이너리그 ${player.milbYears}시즌 만의 꿈`],
+    });
     return;
   }
   if (player.age >= 25 && player.milbYears >= 4 && ovr < mlbLevel - 10) {
@@ -528,7 +565,31 @@ function milbTick(player, report) {
 // =============================================
 // 큰 화면 알림에 띄울 상
 // =============================================
-const BIG_AWARD_WORDS = ["행크 애런상", "리베라상", "호프먼상", "재기상", "클레멘테상", "마르티네스상", "수비상", "MVP", "골든글러브", "베스트나인", "실버슬러거", "골드글러브", "신인왕", "사이영상", "사와무라상", "최동원상", "올스타", "우승", "왕", "메달", "최우수선수", "노히트노런", "사이클링"];
+const BIG_AWARD_WORDS = [
+  "행크 애런상",
+  "리베라상",
+  "호프먼상",
+  "재기상",
+  "클레멘테상",
+  "마르티네스상",
+  "수비상",
+  "MVP",
+  "골든글러브",
+  "베스트나인",
+  "실버슬러거",
+  "골드글러브",
+  "신인왕",
+  "사이영상",
+  "사와무라상",
+  "최동원상",
+  "올스타",
+  "우승",
+  "왕",
+  "메달",
+  "최우수선수",
+  "노히트노런",
+  "사이클링",
+];
 
 function isBigAward(name) {
   return BIG_AWARD_WORDS.some((w) => name.includes(w));
@@ -561,7 +622,12 @@ function seasonBigMoments(report) {
     } else if (sp.key === "openingRoster") {
       list.push({ tone: "gold", kicker: "신인 개막 엔트리", title: "⚾ 바로 1군!", lines: [`${sp.team} 1군에서 프로 데뷔`] });
     } else if (sp.key === "trainee") {
-      list.unshift({ tone: "good", kicker: `${from} 프로 입단`, title: "✍️ 육성선수 계약", lines: [`${sp.team}과 육성선수 계약`, "계약금은 없지만 프로 유니폼을 입었어요"] });
+      list.unshift({
+        tone: "good",
+        kicker: `${from} 프로 입단`,
+        title: "✍️ 육성선수 계약",
+        lines: [`${sp.team}과 육성선수 계약`, "계약금은 없지만 프로 유니폼을 입었어요"],
+      });
     } else if (sp.key === "undrafted") {
       list.unshift({ tone: "bad", kicker: `KBO 신인 드래프트 · ${from}`, title: "😢 미지명", lines: ["끝내 이름이 불리지 않았어요", "다음 길을 골라야 해요"] });
     } else if (sp.key === "mlbScout") {
@@ -572,7 +638,7 @@ function seasonBigMoments(report) {
 }
 
 // =============================================
-// 기사·댓글 문구 (v9)
+// 기사·댓글 문구
 // =============================================
 Object.assign(NEWS.special, {
   mlbScout: "[단독] {team} 스카우트, 고교 졸업반 {name}에 러브콜",
@@ -584,7 +650,13 @@ Object.assign(NEWS.special, {
   openingRoster: "{name}, 신인 개막 엔트리 합류! {team} 1군에서 바로 데뷔",
 });
 Object.assign(FAN, {
-  revival: ["회춘 ㄷㄷ 이게 되네", "나이는 숫자에 불과하다는 걸 증명함", "작년이랑 다른 사람 아님?", "은퇴하라던 사람들 다 어디 감", "이 나이에 커리어하이 실화냐"],
+  revival: [
+    "회춘 ㄷㄷ 이게 되네",
+    "나이는 숫자에 불과하다는 걸 증명함",
+    "작년이랑 다른 사람 아님?",
+    "은퇴하라던 사람들 다 어디 감",
+    "이 나이에 커리어하이 실화냐",
+  ],
   mlbDirect: ["고졸 미국 직행 ㄷㄷ", "마이너는 버스 10시간 탄다던데 버텨라", "KBO 거치고 가지 아깝다", "잘되면 전설, 안되면 복귀 2년 유예… 도박이네"],
   mlbCall: ["드디어 빅리그 ㅠㅠ", "마이너 버스 생활 끝!", "메이저 데뷔전 무조건 본다", "고졸 직행 성공 사례 나오나"],
   allstar: ["올스타 축하!", "팬투표 몰표 ㅋㅋ", "올스타전에서도 한 건 해라", "이 정도면 리그 얼굴"],
@@ -592,49 +664,146 @@ Object.assign(FAN, {
 });
 
 // =============================================
-// v9 업적
+// 업적
 // =============================================
 ACHIEVEMENTS.push(
   { id: "allstar", group: "수상", name: "별들의 잔치", desc: "올스타 선정", check: (p) => (p.awards["올스타"] || 0) >= 1 },
   { id: "allstar10", group: "수상", name: "올스타 단골", desc: "올스타 10번 선정", check: (p) => (p.awards["올스타"] || 0) >= 10 },
   { id: "mrAllstar", group: "수상", name: "미스터 올스타", desc: "올스타전 MVP", check: (p) => countAward(p, "미스터 올스타") >= 1 },
-  { id: "glove", group: "수상", name: "황금 장갑", desc: "골든글러브·베스트나인·골드글러브·실버슬러거 중 하나", check: (p) => ["골든글러브", "베스트나인", "골드글러브", "실버슬러거"].some((a) => countAward(p, a) >= 1) },
-  { id: "ace", group: "수상", name: "리그 최고 투수", desc: "최동원상·사와무라상·사이영상", check: (p) => ["최동원상", "사와무라상", "사이영상"].some((a) => countAward(p, a) >= 1) },
+  {
+    id: "glove",
+    group: "수상",
+    name: "황금 장갑",
+    desc: "골든글러브·베스트나인·골드글러브·실버슬러거 중 하나",
+    check: (p) => ["골든글러브", "베스트나인", "골드글러브", "실버슬러거"].some((a) => countAward(p, a) >= 1),
+  },
+  {
+    id: "ace",
+    group: "수상",
+    name: "리그 최고 투수",
+    desc: "최동원상·사와무라상·사이영상",
+    check: (p) => ["최동원상", "사와무라상", "사이영상"].some((a) => countAward(p, a) >= 1),
+  },
   { id: "direct", group: "커리어", name: "아메리칸 드림", desc: "고교 졸업 후 미국 직행", check: (p) => !!p.overseasAmateur },
   { id: "revival", group: "커리어", name: "회춘", desc: "30대에 찾아온 제2의 전성기", check: (p) => !!p.revivalUsed },
   { id: "nretire", group: "커리어", name: "태극마크 반납", desc: "국가대표 은퇴 선언", check: (p) => !!p.nationalRetired },
 );
 
 // =============================================
-// 감독 면담 (v13): 비시즌마다 1번, 원하는 역할을 말해볼 수 있음
+// 감독 면담: 비시즌마다 1번, 원하는 역할을 말해볼 수 있음
 // 감독은 실력(OVR), 최근 성적, 팀 내 입지(프랜차이즈·인기)를 보고 판단함
 // 결과: 수락 / 캠프 경쟁 후 결정 / 거절 (확정은 아님)
 // =============================================
 const MEETING_WISHES = [
   // side: 투수(pit)·타자(bat) / need: 감독이 OK하려면 필요한 점수 / ok: 요청할 수 있는 상황
-  { id: "starter", short: "선발 전환", side: "pit", label: "선발로 뛰고 싶어요", need: 1, extra: (p) => (p.stats.stamina - LEAGUES[p.league].level) / 4,
-    ok: (p) => p.position === "불펜", hint: "체력이 중요해요" },
-  { id: "bullpen", short: "불펜 전환", side: "pit", label: "불펜으로 가고 싶어요", need: -6, extra: () => 0,
-    ok: (p) => p.position === "선발", hint: "대부분 받아줘요" },
-  { id: "closer", short: "마무리", side: "pit", label: "마무리를 맡고 싶어요", need: 4, extra: (p) => (p.stats.mental - LEAGUES[p.league].level) / 4,
-    ok: (p) => p.position.startsWith("불펜") && p.role !== "closer", hint: "멘탈·구위가 중요해요" },
-  { id: "regular", short: "주전 보장", side: "bat", label: "주전으로 써 주세요", need: -1, extra: () => 0,
-    ok: (p) => !p.starterPromise, hint: "실력이 리그 수준 근처면 가능" },
-  { id: "leadoff", short: "1번 타자", side: "bat", label: "1번 타자를 하고 싶어요", need: 1, extra: (p) => ((p.stats.speed + p.stats.eye) / 2 - LEAGUES[p.league].level) / 4,
-    ok: (p) => p.lineup !== "leadoff", hint: "주루·선구가 중요해요 (타석 +)" },
-  { id: "pinch", short: "대타 요원", side: "bat", label: "대타로라도 써 주세요", need: -9, extra: (p) => (p.stats.clutch - LEAGUES[p.league].level) / 4,
-    ok: (p) => p.lineup !== "pinch" && !p.starterPromise, hint: "벤치 선수용 · 경기 수 늘어요 (클러치가 중요)" },
-  { id: "cleanup", short: "4번 타자", side: "bat", label: "4번 타자를 하고 싶어요", need: 4, extra: (p) => (p.stats.power - LEAGUES[p.league].level) / 3,
-    ok: (p) => p.lineup !== "cleanup", hint: "파워가 중요해요 (타점 기회 +)" },
+  {
+    id: "starter",
+    short: "선발 전환",
+    side: "pit",
+    label: "선발로 뛰고 싶어요",
+    need: 1,
+    extra: (p) => (p.stats.stamina - LEAGUES[p.league].level) / 4,
+    ok: (p) => p.position === "불펜",
+    hint: "체력이 중요해요",
+  },
+  {
+    id: "bullpen",
+    short: "불펜 전환",
+    side: "pit",
+    label: "불펜으로 가고 싶어요",
+    need: -6,
+    extra: () => 0,
+    ok: (p) => p.position === "선발",
+    hint: "대부분 받아줘요",
+  },
+  {
+    id: "closer",
+    short: "마무리",
+    side: "pit",
+    label: "마무리를 맡고 싶어요",
+    need: 4,
+    extra: (p) => (p.stats.mental - LEAGUES[p.league].level) / 4,
+    ok: (p) => p.position.startsWith("불펜") && p.role !== "closer",
+    hint: "멘탈·구위가 중요해요",
+  },
+  {
+    id: "regular",
+    short: "주전 보장",
+    side: "bat",
+    label: "주전으로 써 주세요",
+    need: -1,
+    extra: () => 0,
+    ok: (p) => !p.starterPromise,
+    hint: "실력이 리그 수준 근처면 가능",
+  },
+  {
+    id: "leadoff",
+    short: "1번 타자",
+    side: "bat",
+    label: "1번 타자를 하고 싶어요",
+    need: 1,
+    extra: (p) => ((p.stats.speed + p.stats.eye) / 2 - LEAGUES[p.league].level) / 4,
+    ok: (p) => p.lineup !== "leadoff",
+    hint: "주루·선구가 중요해요 (타석 +)",
+  },
+  {
+    id: "pinch",
+    short: "대타 요원",
+    side: "bat",
+    label: "대타로라도 써 주세요",
+    need: -9,
+    extra: (p) => (p.stats.clutch - LEAGUES[p.league].level) / 4,
+    ok: (p) => p.lineup !== "pinch" && !p.starterPromise,
+    hint: "벤치 선수용 · 경기 수 늘어요 (클러치가 중요)",
+  },
+  {
+    id: "cleanup",
+    short: "4번 타자",
+    side: "bat",
+    label: "4번 타자를 하고 싶어요",
+    need: 4,
+    extra: (p) => (p.stats.power - LEAGUES[p.league].level) / 3,
+    ok: (p) => p.lineup !== "cleanup",
+    hint: "파워가 중요해요 (타점 기회 +)",
+  },
   // 요청 말고 '말'만 하는 면담 (special: 결과를 직접 정함)
-  { id: "resolve", short: "각오 전하기", side: "any", label: "올 시즌 잘하겠습니다, 믿어 주세요", special: true,
-    ok: () => true, hint: "부탁 없이 각오만 · 감독 신뢰 +1, 다음 시즌 컨디션 +" },
-  { id: "captain", short: "주장", side: "any", label: "주장을 맡고 싶어요", need: 0, extra: (p) => (p.fame || 0) / 25 + (p.age >= 30 ? 1 : 0),
-    ok: (p) => p.age >= 27 && p.captainTeam !== p.team, hint: "나이·인기·팀 내 입지가 중요해요 · 팬 여론 +" },
-  { id: "rest", short: "체력 관리", side: "any", label: "체력 관리 좀 해 주세요", special: true,
-    ok: (p) => p.age >= 32 && !p.restPlan, hint: "베테랑용 · 출전은 조금 줄고 부상 위험도 줄어요" },
-  { id: "trade", short: "트레이드 요청", side: "any", label: "트레이드 시켜 주세요", special: true,
-    ok: (p) => p.league === "KBO", hint: "다른 팀에서 새 출발 · 원하는 팀이 있어야 해요 (팬 여론 -)" },
+  {
+    id: "resolve",
+    short: "각오 전하기",
+    side: "any",
+    label: "올 시즌 잘하겠습니다, 믿어 주세요",
+    special: true,
+    ok: () => true,
+    hint: "부탁 없이 각오만 · 감독 신뢰 +1, 다음 시즌 컨디션 +",
+  },
+  {
+    id: "captain",
+    short: "주장",
+    side: "any",
+    label: "주장을 맡고 싶어요",
+    need: 0,
+    extra: (p) => (p.fame || 0) / 25 + (p.age >= 30 ? 1 : 0),
+    ok: (p) => p.age >= 27 && p.captainTeam !== p.team,
+    hint: "나이·인기·팀 내 입지가 중요해요 · 팬 여론 +",
+  },
+  {
+    id: "rest",
+    short: "체력 관리",
+    side: "any",
+    label: "체력 관리 좀 해 주세요",
+    special: true,
+    ok: (p) => p.age >= 32 && !p.restPlan,
+    hint: "베테랑용 · 출전은 조금 줄고 부상 위험도 줄어요",
+  },
+  {
+    id: "trade",
+    short: "트레이드 요청",
+    side: "any",
+    label: "트레이드 시켜 주세요",
+    special: true,
+    ok: (p) => p.league === "KBO",
+    hint: "다른 팀에서 새 출발 · 원하는 팀이 있어야 해요 (팬 여론 -)",
+  },
 ];
 
 // 특별 면담: 각오·체력 관리·트레이드는 감독 점수 대신 상황으로 정함
@@ -646,14 +815,23 @@ function specialMeeting(player, wish, who) {
     player.trustTeam = player.team;
     player.managerTrust = Math.min(3, (player.managerTrust || 0) + 1);
     player.nextMod = (player.nextMod || 0) + 1;
-    return { result: "yes", line: `${who}이 "그 말 믿는다"며 어깨를 두드려 줬어요. (감독 신뢰 ${player.managerTrust}/3)`, news: `${player.name}, 감독 면담서 "올 시즌 각오 남다르다"` };
+    return {
+      result: "yes",
+      line: `${who}이 "그 말 믿는다"며 어깨를 두드려 줬어요. (감독 신뢰 ${player.managerTrust}/3)`,
+      news: `${player.name}, 감독 면담서 "올 시즌 각오 남다르다"`,
+    };
   }
   if (wish.id === "rest") {
     player.restPlan = player.team;
     return { result: "yes", line: `${who}이 "관리해 주마, 대신 나갈 땐 확실히 해라"라고 했어요.`, news: `${player.name}, 베테랑 체력 안배 들어간다` };
   }
   if (wish.id === "trade") {
-    if (isFranchiseHere(player)) return { result: "no", line: `${who}이 "너는 이 팀의 얼굴이다"라며 단칼에 거절했어요.`, news: `${player.name}, 트레이드 요청했지만 구단 "절대 안 보낸다"` };
+    if (isFranchiseHere(player))
+      return {
+        result: "no",
+        line: `${who}이 "너는 이 팀의 얼굴이다"라며 단칼에 거절했어요.`,
+        news: `${player.name}, 트레이드 요청했지만 구단 "절대 안 보낸다"`,
+      };
     if (ovr < lv - 4) return { result: "no", line: "구단이 알아봤지만 원하는 팀이 없었어요.", news: `${player.name}, 트레이드 요청… 시장 반응은 싸늘` };
     const old = player.team;
     const next = pick(TEAMS.KBO.filter((t) => t !== old));
@@ -661,6 +839,7 @@ function specialMeeting(player, wish, who) {
     if (player.contract) player.contract.team = next;
     changeFame(player, -4);
     player.traded = true;
+    player.moveKind = "trade";
     return { result: "yes", line: `${old} → ${next} 트레이드가 성사됐어요!`, news: `[트레이드] ${player.name}, ${old}에서 ${next}로… "새 팀에서 증명하겠다"` };
   }
 }
@@ -713,17 +892,20 @@ function managerScore(player, wish) {
   if (isFranchiseHere(player)) s += 2;
   if (player.trustTeam === player.team) s += player.managerTrust || 0; // 각오를 전해서 쌓은 신뢰
   s += clamp((player.fame || 0) / 30, -1, 1.5);
+  s += fanManagerBonus(player); // 우리 팀 팬심 (fandom.js)
   s += wish.extra(player);
   return round(s, 1);
 }
 
-function meetManager(player, wishId) {
+// talkBonus, talk: 대화 면담 결과 (talk.js). 없으면 예전처럼
+function meetManager(player, wishId, talkBonus, talk) {
+  talk = talk || {};
   const wish = MEETING_WISHES.find((w) => w.id === wishId);
   player.meetingSeason = player.season;
   if (wish.special) return { wish, score: 0, ...specialMeeting(player, wish, managerTitle(player)) };
-  const score = managerScore(player, wish);
+  const score = round(managerScore(player, wish) + (talkBonus || 0), 1);
   const m = managerOf(player);
-  const campRange = m.style === "talk" ? 4.5 : 3;
+  const campRange = (m.style === "talk" ? 4.5 : 3) + (talk.camp ? 1.5 : 0); // 캠프에서 증명하겠다고 하면 캠프 기회 더 줌
   let result;
   if (score >= wish.need) result = "yes";
   else if (score >= wish.need - campRange) result = "camp";
@@ -743,7 +925,13 @@ function meetManager(player, wishId) {
     player.campWish = { id: wish.id, need: wish.need };
     news = `${player.name}, 감독에게 역할 변경 요청… 스프링캠프 경쟁으로 결정`;
   } else {
-    if (score < wish.need - 7) player.nextMod = (player.nextMod || 0) - 1; // 무리한 요구는 관계가 살짝 서먹해짐
+    if (score < wish.need - 7 || talk.threat) player.nextMod = (player.nextMod || 0) - 1; // 무리한 요구·협박은 관계가 서먹해짐
+    if (talk.loyal) {
+      // 거절돼도 따르겠다고 하면 신뢰 +1
+      if (player.trustTeam !== player.team) player.managerTrust = 0;
+      player.trustTeam = player.team;
+      player.managerTrust = Math.min(3, (player.managerTrust || 0) + 1);
+    }
     news = `${player.name}, 감독 면담에서 요청 거절당해`;
   }
   return { wish, result, line, news, score };
@@ -751,13 +939,25 @@ function meetManager(player, wishId) {
 
 function applyWish(player, id) {
   player.promiseTeam = player.team;
-  if (id === "starter") { player.position = "선발"; player.role = null; }
-  if (id === "bullpen") { player.position = "불펜"; player.role = null; }
+  if (id === "starter") {
+    player.position = "선발";
+    player.role = null;
+  }
+  if (id === "bullpen") {
+    player.position = "불펜";
+    player.role = null;
+  }
   if (id === "closer") player.role = "closer";
   if (id === "regular") player.starterPromise = true;
-  if (id === "leadoff" || id === "cleanup") { player.lineup = id; player.starterPromise = true; }
+  if (id === "leadoff" || id === "cleanup") {
+    player.lineup = id;
+    player.starterPromise = true;
+  }
   if (id === "pinch") player.lineup = "pinch";
-  if (id === "captain") { player.captainTeam = player.team; changeFame(player, 4); }
+  if (id === "captain") {
+    player.captainTeam = player.team;
+    changeFame(player, 4);
+  }
 }
 
 // 시즌 시작 때 캠프 경쟁 결과 (시즌 컨디션까지 포함해서 다시 판단)
@@ -790,8 +990,13 @@ function resolveCampWish(player, report, mod) {
 // 타순 효과: 1번 타자는 득점, 4번 타자는 타점이 많음
 function lineupEffect(player, bat) {
   if (!bat) return;
-  if (player.lineup === "leadoff") { bat.R = Math.round(bat.R * 1.15); bat.RBI = Math.round(bat.RBI * 0.85); }
-  if (player.lineup === "cleanup") { bat.RBI = Math.round(bat.RBI * 1.15); }
+  if (player.lineup === "leadoff") {
+    bat.R = Math.round(bat.R * 1.15);
+    bat.RBI = Math.round(bat.RBI * 0.85);
+  }
+  if (player.lineup === "cleanup") {
+    bat.RBI = Math.round(bat.RBI * 1.15);
+  }
 }
 
 // 감독이 먼저 찾아옴: 필승조로 압도적이면 "내년엔 네가 뒷문 맡아라"
@@ -844,7 +1049,11 @@ function resolveManagerTalk(player, choice, option) {
   if (option.id === "accept") {
     player.lineup = "pinch";
     player.promiseTeam = player.team;
-    for (const [k, v] of [["clutch", 2], ["contact", 1]]) player.stats[k] = clamp(player.stats[k] + v, 1, 99);
+    for (const [k, v] of [
+      ["clutch", 2],
+      ["contact", 1],
+    ])
+      player.stats[k] = clamp(player.stats[k] + v, 1, 99);
     return [`${player.name}, 비시즌 대타 특훈… "한 타석에 모든 걸 건다"`];
   }
   player.campWish = { id: "regular", need: -1 };
@@ -853,7 +1062,7 @@ function resolveManagerTalk(player, choice, option) {
 }
 
 // =============================================
-// 감독 교체 (v14): 성적이 나쁘거나 계약이 끝나면 감독이 바뀜
+// 감독 교체: 성적이 나쁘거나 계약이 끝나면 감독이 바뀜
 // 역대 감독(👑 레전드 포함)과 새 얼굴, 은퇴한 라이벌까지 후보가 됨
 // =============================================
 function initManagers(player) {
@@ -865,9 +1074,9 @@ function initManagers(player) {
     const since = now > START_YEAR + 3 ? now - randomInt(0, 3) : MANAGER_SINCE[team] || START_YEAR;
     player.managers[team] = { ...m, note: "", since };
   }
-  player.managerPool = {};  // 한 번이라도 감독을 했던 사람 (다시 돌아올 수 있음)
-  player.managerRest = {};  // 경질된 감독은 2년 쉼
-  player.myManagers = [];   // 내가 함께한 KBO 감독
+  player.managerPool = {}; // 한 번이라도 감독을 했던 사람 (다시 돌아올 수 있음)
+  player.managerRest = {}; // 경질된 감독은 2년 쉼
+  player.myManagers = []; // 내가 함께한 KBO 감독
 }
 
 function managerCandidates(player, year) {
@@ -889,9 +1098,19 @@ function managerCandidates(player, year) {
       list.push({ m: { name, born: year - randomInt(43, 52), style: pick(Object.keys(MANAGER_STYLES)), note: "코치 출신 신임 감독" }, w: 0.8 + age * 0.2 });
     }
   }
+  list.push(...pastPlayerManagers(player, year, ok)); // 예전에 키운 선수 (living.js)
   const r = player.rival;
-  if (r && r.retired && ok(r.name) && player.age >= 38) { // 라이벌은 나랑 동갑
-    list.push({ m: { name: r.name, born: year - player.age, style: r.type === "pitcher" ? "pitch" : pick(["trust", "talk", "run"]), note: "내 라이벌 · 은퇴 후 지도자로" }, w: 4 });
+  if (r && r.retired && ok(r.name) && player.age >= 38) {
+    // 라이벌은 나랑 동갑
+    list.push({
+      m: {
+        name: r.name,
+        born: year - player.age,
+        style: r.type === "pitcher" ? "pitch" : pick(["trust", "talk", "run"]),
+        note: "내 라이벌 · 은퇴 후 지도자로",
+      },
+      w: 4,
+    });
   }
   return list;
 }
@@ -925,7 +1144,7 @@ function rotateManagers(player, report) {
   const changes = [];
   // 다른 팀 순위: 내가 KBO에 있으면 실제 순위표, 아니면 대충 랜덤
   const table = report.league === "KBO" && report.standing ? report.standing.table : null;
-  const shuffled = Object.keys(player.managers).sort(() => Math.random() - 0.5);
+  const shuffled = shuffle(Object.keys(player.managers));
   const rankOf = (team) => (table ? table.findIndex((t) => t.team === team) + 1 : shuffled.indexOf(team) + 1);
   for (const team of shuffled) {
     const old = player.managers[team];
@@ -966,10 +1185,15 @@ function rotateManagers(player, report) {
   }
 
   for (const c of changes) {
-    if (player.rival && c.next.name === player.rival.name) { report.news.push(`라이벌 ${c.next.name}, ${c.team} 감독으로 돌아왔다… "${player.name}? 이제 적장으로 만나죠"`); continue; }
-    report.news.push(c.next.legend
-      ? `'레전드' ${c.next.name} 감독, ${c.team} 지휘봉 잡는다… ${c.old.name} 감독은 ${c.reason}`
-      : `${c.team}, 새 사령탑에 ${c.next.name} 선임… ${c.old.name} 감독 ${c.reason}`);
+    if (player.rival && c.next.name === player.rival.name) {
+      report.news.push(`라이벌 ${c.next.name}, ${c.team} 감독으로 돌아왔다… "${player.name}? 이제 적장으로 만나죠"`);
+      continue;
+    }
+    report.news.push(
+      c.next.legend
+        ? `'레전드' ${c.next.name} 감독, ${c.team} 지휘봉 잡는다… ${c.old.name} 감독은 ${c.reason}`
+        : `${c.team}, 새 사령탑에 ${c.next.name} 선임… ${c.old.name} 감독 ${c.reason}`,
+    );
   }
 
   // 다음 시즌 내 팀 감독이 바뀌면: 예전 약속은 없던 일, 면담도 새로
@@ -1001,39 +1225,143 @@ function rotateManagers(player, report) {
 // KBO 10개 구단 감독 현황표 (감독 면담 패널 안)
 function managerBoardHtml(player, year) {
   initManagers(player);
-  const rows = Object.entries(player.managers).map(([team, m]) =>
-    `<tr${team === player.team ? ' class="mine"' : ""}><td>${team}</td><td>${m.legend ? "👑 " : ""}${m.name}</td><td>${MANAGER_STYLES[m.style].name}</td><td>${Math.max(1, year - m.since + 1)}년째</td></tr>`).join("");
+  const rows = Object.entries(player.managers)
+    .map(
+      ([team, m]) =>
+        `<tr${team === player.team ? ' class="mine"' : ""}><td>${team}</td><td>${m.legend ? "👑 " : ""}${m.name}</td><td>${MANAGER_STYLES[m.style].name}</td><td>${Math.max(1, year - m.since + 1)}년째</td></tr>`,
+    )
+    .join("");
   return `<details class="mgr-board"><summary>KBO 감독 현황</summary><table class="standings"><tr><th>팀</th><th>감독</th><th>스타일</th><th>재임</th></tr>${rows}</table></details>`;
 }
 
 // =============================================
-// 업적 더 다양하게 (v14)
+// 업적 더 다양하게
 // =============================================
 const proSeasons = (p) => p.history.filter((h) => PRO_LEAGUES.includes(h.league) || h.league === "MILB");
 const qualifiedBat = (h) => !isAmateur(h.league) && h.bat && h.bat.PA >= 3.1 * LEAGUES[h.league].games;
 ACHIEVEMENTS.push(
   // 아마추어·커리어
-  { id: "hsMonster", group: "아마추어", name: "고교 괴물", desc: "고교에서 타율 5할 또는 평균자책 0점대", check: (p) => p.history.some((h) => h.league === "HS" && ((h.bat && h.bat.AVG >= 0.5 && h.bat.PA >= 60) || (h.pit && h.pit.ERA < 1 && h.pit.outs >= 90))) },
-  { id: "rookieWar", group: "커리어", name: "괴물 신인", desc: "1군 첫 시즌 WAR 5 이상", check: (p) => { const f = p.history.find((h) => TOP_LEAGUES.includes(h.league)); return !!f && f.WAR >= 5; } },
-  { id: "oneClub", group: "커리어", name: "원클럽맨", desc: "프로 10시즌 이상을 한 팀에서만 뛰고 은퇴", check: (p) => p.retired && proSeasons(p).length >= 10 && new Set(proSeasons(p).filter((h) => TOP_LEAGUES.includes(h.league)).map((h) => h.team)).size === 1 },
-  { id: "journey", group: "커리어", name: "저니맨", desc: "프로 1군 팀 5곳 이상에서 뛰기", check: (p) => new Set(p.history.filter((h) => TOP_LEAGUES.includes(h.league)).map((h) => h.team)).size >= 5 },
-  { id: "worldTour", group: "커리어", name: "한·미·일 정복", desc: "KBO·NPB·MLB에서 모두 뛰기", check: (p) => ["KBO", "NPB", "MLB"].every((lg) => everIn(p, lg)) },
+  {
+    id: "hsMonster",
+    group: "아마추어",
+    name: "고교 괴물",
+    desc: "고교에서 타율 5할 또는 평균자책 0점대",
+    check: (p) => p.history.some((h) => h.league === "HS" && ((h.bat && h.bat.AVG >= 0.5 && h.bat.PA >= 60) || (h.pit && h.pit.ERA < 1 && h.pit.outs >= 90))),
+  },
+  {
+    id: "rookieWar",
+    group: "커리어",
+    name: "괴물 신인",
+    desc: "1군 첫 시즌 WAR 5 이상",
+    check: (p) => {
+      const f = p.history.find((h) => TOP_LEAGUES.includes(h.league));
+      return !!f && f.WAR >= 5;
+    },
+  },
+  {
+    id: "oneClub",
+    group: "커리어",
+    name: "원클럽맨",
+    desc: "프로 10시즌 이상을 한 팀에서만 뛰고 은퇴",
+    check: (p) =>
+      p.retired &&
+      proSeasons(p).length >= 10 &&
+      new Set(
+        proSeasons(p)
+          .filter((h) => TOP_LEAGUES.includes(h.league))
+          .map((h) => h.team),
+      ).size === 1,
+  },
+  {
+    id: "journey",
+    group: "커리어",
+    name: "저니맨",
+    desc: "프로 1군 팀 5곳 이상에서 뛰기",
+    check: (p) => new Set(p.history.filter((h) => TOP_LEAGUES.includes(h.league)).map((h) => h.team)).size >= 5,
+  },
+  {
+    id: "worldTour",
+    group: "커리어",
+    name: "한·미·일 정복",
+    desc: "KBO·NPB·MLB에서 모두 뛰기",
+    check: (p) => ["KBO", "NPB", "MLB"].every((lg) => everIn(p, lg)),
+  },
   { id: "traded", group: "커리어", name: "새 출발", desc: "트레이드 요청으로 팀 옮기기", check: (p) => !!p.traded },
   { id: "captain", group: "커리어", name: "캡틴", desc: "팀 주장 맡기", check: (p) => !!p.captainTeam },
   { id: "closerUp", group: "커리어", name: "뒷문 승격", desc: "감독이 먼저 마무리를 맡기기", check: (p) => !!p.closerPromoted },
   { id: "mega", group: "커리어", name: "메가 계약", desc: "8년 이상 초대형 계약 서명", check: (p) => !!p.megaSigned },
   { id: "abroadDefer", group: "커리어", name: "국외 체류 연기", desc: "MLB에서 뛰며 입대 연기", check: (p) => !!p.abroadDefer },
-  { id: "legendBoss", group: "커리어", name: "레전드의 제자", desc: "👑 레전드 감독 밑에서 뛰기", check: (p) => (p.myManagers || []).some((n) => PAST_MANAGERS.some((m) => m.legend && m.name === n)) },
-  { id: "rivalBoss", group: "커리어", name: "적장이 된 라이벌", desc: "은퇴한 라이벌이 KBO 감독이 되기", check: (p) => !!(p.rival && p.managerPool && p.managerPool[p.rival.name]) },
+  {
+    id: "legendBoss",
+    group: "커리어",
+    name: "레전드의 제자",
+    desc: "👑 레전드 감독 밑에서 뛰기",
+    check: (p) => (p.myManagers || []).some((n) => PAST_MANAGERS.some((m) => m.legend && m.name === n)),
+  },
+  {
+    id: "rivalBoss",
+    group: "커리어",
+    name: "적장이 된 라이벌",
+    desc: "은퇴한 라이벌이 KBO 감독이 되기",
+    check: (p) => !!(p.rival && p.managerPool && p.managerPool[p.rival.name]),
+  },
   // 시즌 기록
-  { id: "thirty30", group: "시즌 기록", name: "30-30", desc: "한 시즌 30홈런·30도루 (프로)", check: (p) => p.history.some((h) => !isAmateur(h.league) && h.bat && h.bat.HR >= 30 && h.bat.SB >= 30) },
-  { id: "forty40", group: "시즌 기록", name: "40-40", desc: "한 시즌 40홈런·40도루 (프로)", check: (p) => p.history.some((h) => !isAmateur(h.league) && h.bat && h.bat.HR >= 40 && h.bat.SB >= 40) },
-  { id: "hit200", group: "시즌 기록", name: "200안타", desc: "한 시즌 200안타 (프로)", check: (p) => p.history.some((h) => !isAmateur(h.league) && h.bat && h.bat.H >= 200) },
-  { id: "ops1000", group: "시즌 기록", name: "OPS 1.000", desc: "규정타석 채우고 OPS 1.000 이상", check: (p) => p.history.some((h) => qualifiedBat(h) && h.bat.OPS >= 1) },
-  { id: "rbi130", group: "시즌 기록", name: "타점 기계", desc: "한 시즌 130타점 (프로)", check: (p) => p.history.some((h) => !isAmateur(h.league) && h.bat && h.bat.RBI >= 130) },
-  { id: "ip200", group: "시즌 기록", name: "이닝 이터", desc: "한 시즌 200이닝 (프로)", check: (p) => p.history.some((h) => !isAmateur(h.league) && h.pit && h.pit.outs >= 600) },
-  { id: "k300", group: "시즌 기록", name: "300K", desc: "한 시즌 300탈삼진 (프로)", check: (p) => p.history.some((h) => !isAmateur(h.league) && h.pit && h.pit.K >= 300) },
-  { id: "hld30", group: "시즌 기록", name: "홀드 장인", desc: "한 시즌 30홀드 (프로)", check: (p) => p.history.some((h) => !isAmateur(h.league) && h.pit && h.pit.HLD >= 30) },
+  {
+    id: "thirty30",
+    group: "시즌 기록",
+    name: "30-30",
+    desc: "한 시즌 30홈런·30도루 (프로)",
+    check: (p) => p.history.some((h) => !isAmateur(h.league) && h.bat && h.bat.HR >= 30 && h.bat.SB >= 30),
+  },
+  {
+    id: "forty40",
+    group: "시즌 기록",
+    name: "40-40",
+    desc: "한 시즌 40홈런·40도루 (프로)",
+    check: (p) => p.history.some((h) => !isAmateur(h.league) && h.bat && h.bat.HR >= 40 && h.bat.SB >= 40),
+  },
+  {
+    id: "hit200",
+    group: "시즌 기록",
+    name: "200안타",
+    desc: "한 시즌 200안타 (프로)",
+    check: (p) => p.history.some((h) => !isAmateur(h.league) && h.bat && h.bat.H >= 200),
+  },
+  {
+    id: "ops1000",
+    group: "시즌 기록",
+    name: "OPS 1.000",
+    desc: "규정타석 채우고 OPS 1.000 이상",
+    check: (p) => p.history.some((h) => qualifiedBat(h) && h.bat.OPS >= 1),
+  },
+  {
+    id: "rbi130",
+    group: "시즌 기록",
+    name: "타점 기계",
+    desc: "한 시즌 130타점 (프로)",
+    check: (p) => p.history.some((h) => !isAmateur(h.league) && h.bat && h.bat.RBI >= 130),
+  },
+  {
+    id: "ip200",
+    group: "시즌 기록",
+    name: "이닝 이터",
+    desc: "한 시즌 200이닝 (프로)",
+    check: (p) => p.history.some((h) => !isAmateur(h.league) && h.pit && h.pit.outs >= 600),
+  },
+  {
+    id: "k300",
+    group: "시즌 기록",
+    name: "300K",
+    desc: "한 시즌 300탈삼진 (프로)",
+    check: (p) => p.history.some((h) => !isAmateur(h.league) && h.pit && h.pit.K >= 300),
+  },
+  {
+    id: "hld30",
+    group: "시즌 기록",
+    name: "홀드 장인",
+    desc: "한 시즌 30홀드 (프로)",
+    check: (p) => p.history.some((h) => !isAmateur(h.league) && h.pit && h.pit.HLD >= 30),
+  },
   { id: "war10", group: "시즌 기록", name: "WAR 10", desc: "한 시즌 WAR 10 이상", check: (p) => p.history.some((h) => !isAmateur(h.league) && h.WAR >= 10) },
   // 통산 기록
   { id: "hit3000", group: "통산 기록", name: "3000안타", desc: "프로 통산 3000안타", check: (p) => sumHist(p, "bat", "H") >= 3000 },
@@ -1043,11 +1371,35 @@ ACHIEVEMENTS.push(
   { id: "war100", group: "통산 기록", name: "WAR 100", desc: "프로 통산 WAR 100", check: (p) => careerTotals(p).WAR >= 100 },
   // 수상
   { id: "regular1", group: "수상", name: "정규시즌 1위", desc: "정규시즌 우승", check: (p) => countAward(p, "정규시즌 우승") >= 1 },
-  { id: "mvpRing", group: "수상", name: "완벽한 한 해", desc: "같은 해에 MVP와 시리즈 우승", check: (p) => p.history.some((h) => h.awards.some((a) => a.includes("MVP") && !a.includes("올스타")) && h.awards.some((a) => a.includes("시리즈 우승"))) },
-  { id: "glove5", group: "수상", name: "황금 장갑 수집가", desc: "골든글러브·베스트나인 5회", check: (p) => countAward(p, "골든글러브") + countAward(p, "베스트나인") >= 5 },
-  { id: "aceTwice", group: "수상", name: "에이스 중의 에이스", desc: "최동원상·사와무라상·사이영상 합쳐 3회", check: (p) => ["최동원상", "사와무라상", "사이영상"].reduce((t, a) => t + countAward(p, a), 0) >= 3 },
+  {
+    id: "mvpRing",
+    group: "수상",
+    name: "완벽한 한 해",
+    desc: "같은 해에 MVP와 시리즈 우승",
+    check: (p) => p.history.some((h) => h.awards.some((a) => a.includes("MVP") && !a.includes("올스타")) && h.awards.some((a) => a.includes("시리즈 우승"))),
+  },
+  {
+    id: "glove5",
+    group: "수상",
+    name: "황금 장갑 수집가",
+    desc: "골든글러브·베스트나인 5회",
+    check: (p) => countAward(p, "골든글러브") + countAward(p, "베스트나인") >= 5,
+  },
+  {
+    id: "aceTwice",
+    group: "수상",
+    name: "에이스 중의 에이스",
+    desc: "최동원상·사와무라상·사이영상 합쳐 3회",
+    check: (p) => ["최동원상", "사와무라상", "사이영상"].reduce((t, a) => t + countAward(p, a), 0) >= 3,
+  },
   { id: "aaron", group: "수상", name: "리그 최고의 타자", desc: "행크 애런상", check: (p) => countAward(p, "행크 애런상") >= 1 },
-  { id: "reliever", group: "수상", name: "올해의 구원투수", desc: "마리아노 리베라상·트레버 호프먼상", check: (p) => countAward(p, "리베라상") + countAward(p, "호프먼상") >= 1 },
+  {
+    id: "reliever",
+    group: "수상",
+    name: "올해의 구원투수",
+    desc: "마리아노 리베라상·트레버 호프먼상",
+    check: (p) => countAward(p, "리베라상") + countAward(p, "호프먼상") >= 1,
+  },
   { id: "comeback", group: "수상", name: "재기의 아이콘", desc: "올해의 재기상", check: (p) => countAward(p, "재기상") >= 1 },
   { id: "clemente", group: "수상", name: "그라운드 밖의 영웅", desc: "로베르토 클레멘테상", check: (p) => countAward(p, "클레멘테상") >= 1 },
   { id: "medals", group: "수상", name: "메달 컬렉터", desc: "국제대회 메달 3개", check: (p) => countAward(p, "메달") >= 3 },
@@ -1056,7 +1408,13 @@ ACHIEVEMENTS.push(
   { id: "petLover", group: "인생", name: "집사", desc: "반려동물 키우기", check: (p) => !!p.pet },
   { id: "landlord", group: "인생", name: "건물주", desc: "건물주 되기", check: (p) => hasItem(p, "building") },
   { id: "islander", group: "인생", name: "섬 주인", desc: "남태평양 개인 섬 사기", check: (p) => hasItem(p, "island") },
-  { id: "giver", group: "인생", name: "기부 천사", desc: "기부 아이템 4개 이상", check: (p) => ["donation", "foundation", "alma", "coal", "elderly", "disaster", "little", "camp"].filter((id) => hasItem(p, id)).length >= 4 },
+  {
+    id: "giver",
+    group: "인생",
+    name: "기부 천사",
+    desc: "기부 아이템 4개 이상",
+    check: (p) => ["donation", "foundation", "alma", "coal", "elderly", "disaster", "little", "camp"].filter((id) => hasItem(p, id)).length >= 4,
+  },
   { id: "hyodo", group: "인생", name: "효자", desc: "부모님 집과 차 선물", check: (p) => hasItem(p, "parents") && hasItem(p, "parentsCar") },
   { id: "collector", group: "인생", name: "쇼핑왕", desc: "상점 아이템 20개 보유", check: (p) => (p.owned || []).length >= 20 },
 );

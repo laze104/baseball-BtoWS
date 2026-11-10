@@ -1,5 +1,5 @@
 // =============================================
-// broadcast.js : v16 추가 기능 (OOTP 느낌)
+// broadcast.js : 중계 연출 (가짜 이름, 트래킹 데이터, 신기록, 텍스트 중계)
 // 1. 가짜 선수 이름 (리더보드·중계 상대용)
 // 2. 트래킹 데이터: 구속, 구종, 타구 속도, 홈런 비거리, 타구 방향
 // 3. 신기록 팝업 (구속, 비거리)
@@ -12,14 +12,50 @@
 const FAKE_NAMES = {
   KBO: {
     last: ["김", "이", "박", "최", "정", "강", "조", "윤", "장", "임", "한", "오", "서", "신", "권", "황", "안", "송", "류", "홍"],
-    first: ["민준", "서진", "도현", "지훈", "현우", "재윤", "승민", "태양", "우석", "준혁", "성빈", "동하", "건우", "시후", "유찬", "정우", "하준", "대호", "영재", "무진"],
+    first: [
+      "민준",
+      "서진",
+      "도현",
+      "지훈",
+      "현우",
+      "재윤",
+      "승민",
+      "태양",
+      "우석",
+      "준혁",
+      "성빈",
+      "동하",
+      "건우",
+      "시후",
+      "유찬",
+      "정우",
+      "하준",
+      "대호",
+      "영재",
+      "무진",
+    ],
   },
   NPB: {
     last: ["야마다", "사토", "스즈키", "다카하시", "다나카", "이토", "와타나베", "나카무라", "고바야시", "가토", "모리", "이시카와"],
     first: ["쇼타", "유키", "하루토", "렌", "소마", "다이키", "겐타", "료", "가이토", "히로", "슌", "다쿠야"],
   },
   MLB: {
-    last: ["존슨", "윌리엄스", "로드리게스", "밀러", "가르시아", "데이비스", "마르티네스", "앤더슨", "테일러", "토머스", "에르난데스", "무어", "잭슨", "화이트"],
+    last: [
+      "존슨",
+      "윌리엄스",
+      "로드리게스",
+      "밀러",
+      "가르시아",
+      "데이비스",
+      "마르티네스",
+      "앤더슨",
+      "테일러",
+      "토머스",
+      "에르난데스",
+      "무어",
+      "잭슨",
+      "화이트",
+    ],
     first: ["마이크", "제이크", "타일러", "카를로스", "라이언", "조시", "케빈", "루이스", "브랜든", "호세", "애런", "닉"],
   },
 };
@@ -54,11 +90,26 @@ const PITCH_KINDS = {
 };
 
 const ARSENAL_BY_STYLE = {
-  "파이어볼러": [["슬라이더", "스플리터"], ["커브", "포크"]],
-  "제구형": [["체인지업", "커터"], ["투심", "커브"]],
-  "기교파": [["커브", "슬라이더", "체인지업"], ["스위퍼", "포크"]],
-  "이닝이터": [["투심", "슬라이더"], ["체인지업", "커브"]],
-  "이도류": [["스위퍼", "스플리터"], ["커터", "커브"]],
+  "파이어볼러": [
+    ["슬라이더", "스플리터"],
+    ["커브", "포크"],
+  ],
+  "제구형": [
+    ["체인지업", "커터"],
+    ["투심", "커브"],
+  ],
+  "기교파": [
+    ["커브", "슬라이더", "체인지업"],
+    ["스위퍼", "포크"],
+  ],
+  "이닝이터": [
+    ["투심", "슬라이더"],
+    ["체인지업", "커브"],
+  ],
+  "이도류": [
+    ["스위퍼", "스플리터"],
+    ["커터", "커브"],
+  ],
 };
 
 function initArsenal(player) {
@@ -126,7 +177,8 @@ function makeTracking(player, report) {
     const rest = list.slice(1).map((name, i) => ({ name, w: (list.length - i) * (0.8 + Math.random() * 0.4) }));
     const sum = rest.reduce((s, x) => s + x.w, 0) || 1;
     t.pitches = [{ name: list[0], pct: Math.round(fb), velo: round(avg, 1) }];
-    for (const r of rest) t.pitches.push({ name: r.name, pct: Math.round(((100 - fb) * r.w) / sum), velo: round(avg - PITCH_KINDS[r.name].drop + gauss() * 0.8, 1) });
+    for (const r of rest)
+      t.pitches.push({ name: r.name, pct: Math.round(((100 - fb) * r.w) / sum), velo: round(avg - PITCH_KINDS[r.name].drop + gauss() * 0.8, 1) });
     // 결정구: 포심 빼고 가장 많이 던진 공
     t.best = rest.length ? t.pitches.slice(1).sort((a, c) => c.pct - a.pct)[0].name : list[0];
   }
@@ -149,7 +201,12 @@ function trackRecords(player, report) {
       // 150km 넘고 개인 기록 깼을 때만 크게 보여줌
       if (t.veloMax >= 150 && (prev || t.veloMax >= 153)) {
         const dream = t.veloMax >= 160 ? "꿈의 160km 돌파!" : t.veloMax >= 155 ? "155km 벽을 넘었다!" : "150km대 강속구";
-        moments.push({ tone: "gold", kicker: `${report.year} 시즌 · ${lg} 트래킹`, title: `🔥 구속 신기록 ${t.veloMax}km/h`, lines: [dream, prev ? `개인 최고 구속 경신 (이전 ${prev}km/h)` : "전광판에 찍힌 숫자에 관중석이 술렁였어요"] });
+        moments.push({
+          tone: "gold",
+          kicker: `${report.year} 시즌 · ${lg} 트래킹`,
+          title: `🔥 구속 신기록 ${t.veloMax}km/h`,
+          lines: [dream, prev ? `개인 최고 구속 경신 (이전 ${prev}km/h)` : "전광판에 찍힌 숫자에 관중석이 술렁였어요"],
+        });
         lines.push(`${player.name}, 전광판에 ${t.veloMax}km/h… ${t.veloMax >= 160 ? "꿈의 160km 찍었다" : "개인 최고 구속 경신"}`);
       }
     }
@@ -161,7 +218,12 @@ function trackRecords(player, report) {
       rec.hrDistYear = report.year;
       if (t.hrMax >= 140) {
         const big = t.hrMax >= 150 ? "장외 홈런! 공이 경기장 밖으로 사라졌어요" : "관중석 상단에 꽂힌 초대형 홈런";
-        moments.push({ tone: "gold", kicker: `${report.year} 시즌 · 비거리 측정`, title: `💥 ${t.hrMax}m 초대형 홈런`, lines: [big, prev ? `개인 최장 비거리 경신 (이전 ${prev}m)` : `타구 속도 ${t.exitMax}km/h`] });
+        moments.push({
+          tone: "gold",
+          kicker: `${report.year} 시즌 · 비거리 측정`,
+          title: `💥 ${t.hrMax}m 초대형 홈런`,
+          lines: [big, prev ? `개인 최장 비거리 경신 (이전 ${prev}m)` : `타구 속도 ${t.exitMax}km/h`],
+        });
         lines.push(`${player.name}, 비거리 ${t.hrMax}m ${t.hrMax >= 150 ? "장외 홈런" : "대형 아치"}… "공이 안 보였다"`);
       }
     }
@@ -169,11 +231,19 @@ function trackRecords(player, report) {
   if (t.exitMax && t.exitMax > (rec.exit || 0)) rec.exit = t.exitMax;
   if (moments.length) {
     report.bigMoments = (report.bigMoments || []).concat(moments);
-    addReaction(player, report, lines, FAN.record, {});
+    addReaction(player, report, lines, FAN.speedRecord, {});
   }
 }
 
-FAN.record = ["와 전광판 숫자 실화냐", "저게 사람이 던지는 공임?", "구단 유튜브 조회수 터진다", "이건 진짜 리그 최상위 툴임", "스카우트들 줄 서겠네 ㅋㅋ", "존나 빠르다 진짜", "타구 소리부터 다름"];
+FAN.speedRecord = [
+  "와 전광판 숫자 실화냐",
+  "저게 사람이 던지는 공임?",
+  "구단 유튜브 조회수 터진다",
+  "이건 진짜 리그 최상위 툴임",
+  "스카우트들 줄 서겠네 ㅋㅋ",
+  "존나 빠르다 진짜",
+  "타구 소리부터 다름",
+];
 
 // 시즌 결과 탭에 붙는 트래킹 표
 function trackingHtml(report) {
@@ -203,8 +273,10 @@ function sprayHtml(t) {
   const op = (v) => (0.15 + v / 80).toFixed(2);
   // 홈플레이트 (100,110), 반지름 95짜리 부채꼴을 3칸으로
   const pt = (deg, r) => [100 + r * Math.cos((deg * Math.PI) / 180), 110 - r * Math.sin((deg * Math.PI) / 180)].map((v) => v.toFixed(1)).join(",");
-  const wedge = (a, b, v) => `<path d="M100,110 L${pt(a, 95)} A95,95 0 0,1 ${pt(b, 95)} Z" fill="#e8b931" fill-opacity="${op(v)}" stroke="#14281c" stroke-width="1.5"/>`;
-  const label = (deg, v, n) => `<text x="${pt(deg, 60).split(",")[0]}" y="${pt(deg, 60).split(",")[1]}" text-anchor="middle" font-size="13" font-weight="bold" fill="#f1f5f2">${v}%</text>${n ? `<text x="${pt(deg, 82).split(",")[0]}" y="${pt(deg, 82).split(",")[1]}" text-anchor="middle" font-size="10" fill="#ffd36b">HR ${n}</text>` : ""}`;
+  const wedge = (a, b, v) =>
+    `<path d="M100,110 L${pt(a, 95)} A95,95 0 0,1 ${pt(b, 95)} Z" fill="#e8b931" fill-opacity="${op(v)}" stroke="#14281c" stroke-width="1.5"/>`;
+  const label = (deg, v, n) =>
+    `<text x="${pt(deg, 60).split(",")[0]}" y="${pt(deg, 60).split(",")[1]}" text-anchor="middle" font-size="13" font-weight="bold" fill="#f1f5f2">${v}%</text>${n ? `<text x="${pt(deg, 82).split(",")[0]}" y="${pt(deg, 82).split(",")[1]}" text-anchor="middle" font-size="10" fill="#ffd36b">HR ${n}</text>` : ""}`;
   return `<div class="spray"><svg viewBox="0 0 200 120" role="img" aria-label="타구 방향 분포">
     ${wedge(135, 105, left)}${wedge(105, 75, s.center)}${wedge(75, 45, right)}
     ${label(120, left, hrL)}${label(90, s.center, hr.center)}${label(60, right, hrR)}
@@ -227,6 +299,7 @@ function buildPbp(player, choice, optionId, ok, nem) {
   const cycle = choice.situation.includes("사이클링");
   const level = LEAGUES[lg] ? LEAGUES[lg].level : 58;
 
+  const tendLine = tendPbpLine(choice, optionId, ok); // 수싸움 결과 (boxscore.js)
   if (choice.side === "bat") {
     const pitcher = (o ? o.name : nem ? nem.name : fakeName(lg)) + tag;
     const v = o && o.velo ? Math.round(o.velo) : round(140 + (level - 35) * 0.25 + Math.random() * 4, 0); // 상대 투수 구속은 리그 수준 따라감
@@ -242,6 +315,11 @@ function buildPbp(player, choice, optionId, ok, nem) {
       lines.push(`2구 ${v}km/h 직구, 스트라이크. 3구 파울, 뒤로 넘어갑니다.`);
       lines.push(`4구 떨어지는 포크… 참아냅니다! 볼. 풀카운트까지 왔어요.`);
       lines.push(`5구 파울, 6구 파울. 끈질기게 버팁니다. 7구…`);
+    } else if (optionId === "breakball") {
+      const pt = (o && o.pitch) || "슬라이더";
+      lines.push(`초구 직구는 그냥 보냅니다. 스트라이크.`);
+      lines.push(`2구 ${pt}, 커트. 3구 바깥쪽 직구, 볼. 1-2.`);
+      lines.push(`포수가 주무기 ${pt} 사인을 냅니다. ${player.name}, 기다렸다는 듯…`);
     } else {
       lines.push(`초구 크게 헛스윙! 노리는 공이 분명합니다.`);
       lines.push(`2구 유인구, 볼. 3구 ${v + 1}km/h 직구가 높게 들어옵니다…`);
@@ -249,7 +327,11 @@ function buildPbp(player, choice, optionId, ok, nem) {
     if (ok) {
       if (cycle) lines.push(`우중간을 가릅니다! 2루 돌아 3루까지! 세이프!! 사이클링 히트 완성!`);
       else if (optionId === "big") lines.push(`큽니다! 큽니다!! 넘어갑니다!!! 비거리 ${dist}m, 경기장이 뒤집혔어요!`);
-      else lines.push(`${optionId === "wait" ? "끝내 받아친 타구" : "깨끗하게 맞은 타구"}가 ${optionId === "first" ? pullSide : "중견수 앞"}으로 굴러갑니다! 주자 홈인!! 해결사 ${player.name}!`);
+      else if (optionId === "breakball") lines.push(`떨어지는 공을 끝까지 따라가 걷어 올립니다! 좌중간을 가르는 적시타!! 해결사 ${player.name}!`);
+      else
+        lines.push(
+          `${optionId === "wait" ? "끝내 받아친 타구" : "깨끗하게 맞은 타구"}가 ${optionId === "first" ? pullSide : "중견수 앞"}으로 굴러갑니다! 주자 홈인!! 해결사 ${player.name}!`,
+        );
     } else {
       if (optionId === "big") lines.push(`헛스윙 삼진… ${player.name}, 고개를 떨굽니다.`);
       else lines.push(pick([`높이 뜬 타구… 유격수가 자리 잡고 잡아냅니다.`, `2루수 정면 땅볼… 1루에서 아웃.`, `잘 맞았지만 우익수 정면! 아쉽습니다.`]));
@@ -283,17 +365,25 @@ function buildPbp(player, choice, optionId, ok, nem) {
       else lines.push(`바깥쪽 끝에 걸칩니다! 루킹 삼진! 타자는 얼어붙었어요.`);
     } else {
       if (optionId === "big") lines.push(`가운데 몰렸다… 큽니다, 넘어갑니다. 통한의 피홈런.`);
-      else lines.push(pick([`${optionId === "heat" ? "포심" : brk} 공략당합니다! 좌중간 안타, 주자 홈인…`, `빗맞은 타구가 내야를 넘어갑니다… 주자 홈인.`, `볼넷… 그리고 다음 타자에게 적시타를 맞습니다.`]));
+      else
+        lines.push(
+          pick([
+            `${optionId === "heat" ? "포심" : brk} 공략당합니다! 좌중간 안타, 주자 홈인…`,
+            `빗맞은 타구가 내야를 넘어갑니다… 주자 홈인.`,
+            `볼넷… 그리고 다음 타자에게 적시타를 맞습니다.`,
+          ]),
+        );
     }
   }
+  if (tendLine) lines.splice(lines.length - 1, 0, tendLine);
   return lines;
 }
 
 // 명장면 보관 (연감에서 다시 볼 수 있음, 최근 20개)
-function saveHighlight(player, choice, ok, title, pbp) {
+function saveHighlight(player, choice, ok, title, pbp, box) {
   const list = player.highlights || (player.highlights = []);
   const lr = player.lastReport;
-  list.push({ year: lr ? lr.year : gameYear(player), team: lr ? lr.team : player.team, stage: choice.stage, ok, title, pbp });
+  list.push({ year: lr ? lr.year : gameYear(player), team: lr ? lr.team : player.team, stage: choice.stage, ok, title, pbp, box: box || null });
   if (list.length > 20) list.shift();
 }
 
@@ -337,7 +427,8 @@ function clutchBoardHtml(player, choice) {
   const o = choice.opp || {};
   const s = parseSituation(choice.situation);
   const nem = o.nemId ? (player.nemeses || []).find((n) => n.id === o.nemId) : null;
-  const base = (on, x, y) => `<rect x="${x - 9}" y="${y - 9}" width="18" height="18" transform="rotate(45 ${x} ${y})" fill="${on ? "#e8b931" : "none"}" stroke="#f1f5f2" stroke-width="2"/>`;
+  const base = (on, x, y) =>
+    `<rect x="${x - 9}" y="${y - 9}" width="18" height="18" transform="rotate(45 ${x} ${y})" fill="${on ? "#e8b931" : "none"}" stroke="#f1f5f2" stroke-width="2"/>`;
   const diamond = `<svg viewBox="0 0 80 64" class="cb-diamond" aria-label="주자 상황">${base(s.bases[1], 40, 14)}${base(s.bases[2], 16, 38)}${base(s.bases[0], 64, 38)}<path d="M34,58 h12 v-4 l-6,-5 l-6,5 z" fill="#f1f5f2"/></svg>`;
   const outs = [0, 1].map((i) => `<i class="${i < s.outs ? "on" : ""}"></i>`).join("");
   const me = choice.side === "bat" ? "타석" : "마운드";
@@ -355,6 +446,7 @@ function clutchBoardHtml(player, choice) {
     <p class="cb-sit">${choice.situation}</p>
     <div class="cb-vs"><div><b>${me} ${player.name}</b><small>${player.team}</small></div><em>VS</em><div>${opp}</div></div>
     ${nemLine}
+    ${tendMemoHtml(choice)}
     <p class="cb-q">🎙️ "자, 운명의 승부입니다. ${player.name}, 어떤 선택을 할까요?"</p>
   </div>`;
 }
