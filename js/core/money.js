@@ -282,7 +282,7 @@ function addMoney(player, amount) {
 
 // 시즌이 끝나면 연봉이 들어옴
 function payday(player, report) {
-  const salary = player.contract ? player.contract.salary : minSalary(player.league, player);
+  const salary = (player.contract ? player.contract.salary : minSalary(player.league, player)) + payIncentive(player, report); // 인센티브 (contract.js)
   addMoney(player, payAgent(player, salary, player.contract ? player.contract.agentRate : 0)); // 에이전트 계약이면 수수료 뗌
   payServices(player, report); // 전담 스태프 연 계약 (world.js)
   return salary;

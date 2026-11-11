@@ -2376,3 +2376,336 @@ table.records small {
 .memes li.dead {
   opacity: 0.5;
 }
+
+/* ---------- v0.19: 4구간 시즌 (phases.js) ---------- */
+.in-season > h3,
+.in-season #focus-list,
+.in-season #position-panel {
+  display: none;
+}
+.phase-steps {
+  display: flex;
+  gap: 4px;
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  counter-reset: step;
+}
+.phase-steps li {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  padding: 6px 2px;
+  border-radius: 6px;
+  background: #1b2a1f;
+  color: #a9b8ad;
+}
+.phase-steps li.done {
+  background: #3c5a44;
+  color: #f2f2f2;
+}
+.phase-steps li.now {
+  background: #e8b931;
+  color: #1b2a1f;
+  font-weight: bold;
+}
+.phase-box h4 {
+  margin: 14px 0 6px;
+}
+.expect {
+  background: #1b2a1f;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 8px 0;
+}
+.camp-lines {
+  padding-left: 18px;
+  margin: 4px 0;
+}
+.camp-lines li {
+  margin: 3px 0;
+}
+.goals {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0;
+}
+.goals li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  margin: 4px 0;
+  border-radius: 8px;
+  background: #1b2a1f;
+}
+.goals li span {
+  margin-left: auto;
+  color: #a9b8ad;
+  font-size: 13px;
+}
+.goals li em {
+  font-style: normal;
+  font-size: 11px;
+  color: #1b2a1f;
+  background: #d4694f;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.goals li.done {
+  outline: 2px solid #e8b931;
+}
+.goals li.done b::before {
+  content: "✅ ";
+}
+.goals li.fail b::before {
+  content: "➖ ";
+}
+
+/* 스프링캠프 창 */
+#camp-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 105;
+  padding: 16px;
+}
+#camp-modal[hidden] {
+  display: none;
+}
+.camp-card {
+  background: #26392b;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 460px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: big-pop 0.3s ease-out;
+}
+.camp-body {
+  padding: 14px;
+  overflow-y: auto;
+}
+.camp-body h3 {
+  margin-top: 0;
+}
+.camp-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 14px 14px;
+}
+.camp-progs,
+.camp-goals {
+  display: grid;
+  gap: 6px;
+}
+.camp-goals {
+  grid-template-columns: 1fr 1fr;
+}
+.camp-prog,
+.camp-goal {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #1b2a1f;
+  border: 2px solid transparent;
+  cursor: pointer;
+  margin: 0;
+}
+.camp-prog input,
+.camp-goal input {
+  display: none;
+}
+.camp-prog:has(input:checked),
+.camp-goal:has(input:checked) {
+  border-color: #e8b931;
+}
+.camp-prog small,
+.camp-goal small {
+  font-size: 12px;
+}
+.camp-goal.chal b::after {
+  content: " 🔥";
+}
+
+/* ---------- 그래프 (charts.js) ---------- */
+.line-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 4px 0;
+}
+.line-chart .grid {
+  stroke: #3c5a44;
+  stroke-width: 1;
+}
+.line-chart .axis {
+  fill: #a9b8ad;
+  font-size: 11px;
+}
+.line-chart .end {
+  fill: #f2f2f2;
+  font-size: 12px;
+  font-weight: bold;
+}
+.line-chart .hit {
+  fill: transparent;
+  cursor: pointer;
+}
+.line-chart .hit:hover {
+  fill: rgba(255, 255, 255, 0.12);
+}
+.legend {
+  margin: 2px 0;
+  font-size: 13px;
+  color: #d8e0da;
+}
+.legend .key {
+  display: inline-block;
+  width: 16px;
+  height: 0;
+  border-top: 2px solid var(--c);
+  vertical-align: middle;
+  margin: 0 4px 0 8px;
+}
+.legend .key:first-child {
+  margin-left: 0;
+}
+.legend .key[data-dash] {
+  border-top-style: dashed;
+}
+.chart-table summary {
+  font-size: 12px;
+  color: #a9b8ad;
+  cursor: pointer;
+}
+.chart-table table {
+  font-size: 12px;
+  overflow-x: auto;
+  display: block;
+}
+.career-charts {
+  margin-bottom: 16px;
+}
+
+/* ---------- 분석실 (analysis.js) ---------- */
+.analysis-side {
+  margin: 10px 0 18px;
+  padding: 12px;
+}
+.analysis-side h3 {
+  margin-top: 0;
+}
+.zone-box {
+  max-width: 240px;
+  margin: 0 auto;
+}
+.zone-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  border: 2px solid #f2f2f2;
+  border-radius: 4px;
+  padding: 2px;
+}
+.zcell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 15px;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  background: rgba(212, 105, 79, var(--a));
+  border-radius: 2px;
+}
+.zone-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #a9b8ad;
+  margin: 2px 0;
+}
+.pitch-table {
+  width: 100%;
+}
+.weak-box {
+  background: #1b2a1f;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 10px;
+}
+.weak-box p {
+  margin: 4px 0;
+}
+.weak-box button {
+  width: auto;
+  padding: 4px 10px;
+  font-size: 13px;
+  margin: 0 0 0 6px;
+}
+
+/* ---------- 라커룸 그룹 (clubhouse.js) ---------- */
+.groups {
+  list-style: none;
+  padding: 0;
+}
+.groups li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "name lead" "bar val";
+  gap: 2px 8px;
+  margin: 8px 0;
+}
+.groups li > span:first-child {
+  grid-area: name;
+  font-weight: bold;
+}
+.groups li small {
+  grid-area: lead;
+}
+.groups li .bar {
+  grid-area: bar;
+}
+.groups li b {
+  grid-area: val;
+}
+
+/* 감독이 본 것 (talk.js) */
+.mview-box {
+  margin: 6px 0;
+  color: #222;
+}
+.mview-box summary {
+  cursor: pointer;
+  font-weight: bold;
+}
+.mview-box .small {
+  color: #555;
+}
+.mview {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0;
+}
+.mview li {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  border-bottom: 1px solid #c8ced3;
+}
+.mview li.plus b {
+  color: #1d6b35;
+}
+.mview li.minus b {
+  color: #a8321b;
+}

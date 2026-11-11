@@ -98,7 +98,8 @@ function pitcherPlan(player, ovr) {
     if (collegeBench(player, ovr)) return { label: "백업", role: "setup", games: 8 };
     return isStarter ? { label: "선발", role: "starter", games: 10 } : { label: "불펜", role: "setup", games: 15 };
   }
-  const regular = ovr >= league.level - 2;
+  const rotationPromise = player.promise && player.promise.team === player.team && player.promise.role === "rotation"; // FA 계약 약속 (contract.js)
+  const regular = ovr >= league.level - 2 - (isStarter && rotationPromise ? 3 : 0);
   if (isStarter) {
     const starts = regular ? Math.round(league.games / 5.3) : Math.round(league.games / 12);
     return { label: regular ? "선발 로테이션" : "대체 선발", role: "starter", games: Math.round(starts * share) };
@@ -113,8 +114,18 @@ function pitcherPlan(player, ovr) {
 // ---------------------------------------------
 // 2. 시즌 진행 (핵심 함수)
 // ---------------------------------------------
+// 한 번에 시즌 끝까지 (아마추어·테스트). 프로는 phases.js 가 4구간으로 나눠서 부름
 function runSeason(player, focusKeys) {
   if (player.league === "SOCIAL") return serviceSeason(player, focusKeys); // 사회복무는 경기가 없음
+  const ctx = startSeason(player, focusKeys);
+  playPart(player, ctx, 0, 1);
+  return finishSeason(player, ctx);
+}
+
+// 시즌 시작: 국가대표, 컨디션, 부상, 각성·슬럼프까지. 경기는 아직 안 함
+// opts.campMod: 스프링캠프 결과 (phases.js)
+function startSeason(player, focusKeys, opts) {
+  opts = opts || {};
   const league = LEAGUES[player.league];
   const report = {
     age: player.age,
@@ -126,10 +137,12 @@ function runSeason(player, focusKeys) {
     awards: [],
     bat: null,
     pit: null,
+    news: [], // 시즌 중 기사 (4구간 시즌). 시즌 끝 makeNews 가 앞에 총평 붙임
+    toasts: [],
   };
 
   archiveNews(player); // 지난 시즌 기사 보관 (news.js)
-  maybeMidTrade(player, report); // 시즌 도중 강제 트레이드 (extra.js)
+  if (!opts.phased) maybeMidTrade(player, report); // 시즌 도중 강제 트레이드 (extra.js). 4구간 시즌은 트레이드 마감 이벤트로 대신
 
   // (1) 국가대표 대회 / 팀 집중
   let mod = 0;
@@ -156,6 +169,7 @@ function runSeason(player, focusKeys) {
   mod += historicMod(player, report, league.level); // 역사적 시즌, 극악 확률 (extra.js)
   mod += lockerMod(player, report); // 라커룸 사기 (locker.js)
   mod += cardMod(player, report); // 서포트 카드 (cards.js)
+  mod += opts.campMod || 0; // 스프링캠프 (phases.js)
   resolveCampWish(player, report, mod); // 감독 면담 '캠프 경쟁' 결과 (world.js)
   if (player.positionAdjust) {
     mod -= 2;
@@ -171,6 +185,7 @@ function runSeason(player, focusKeys) {
   if (resting) injuryChance *= 0.5;
   if (hasItem(player, "recovery")) injuryChance *= 0.8; // 회복 장비
   injuryChance *= cardInjuryMul(player); // 트레이너 카드 (cards.js)
+  injuryChance *= opts.injuryMul || 1; // 캠프에서 몸 만들기 (phases.js)
   const restFactor = resting ? 0.9 : 1;
   // 부상 정도, 유리몸 (extra.js) / 수술한 다음 해는 거의 통째로 쉼 (body.js)
   gameFactor = player.surgeryOut ? surgerySeason(player, report) : rollInjury(player, report, injuryChance + bodyRisk(player));
@@ -182,33 +197,52 @@ function runSeason(player, focusKeys) {
     mod += 5; // 각성 (예전 +8 → +5: 능력치가 성적을 더 많이 좌우하게)
     report.events.push("각성");
     report.specials.push({ key: "awaken" });
-  } else if (Math.random() < (hasItem(player, "mental") ? 0.03 : 0.06)) {
+  } else if (Math.random() < (hasItem(player, "mental") ? 0.03 : 0.06) * (opts.slumpMul || 1)) {
     mod -= 5; // 슬럼프 (멘탈 코치가 있으면 확률 절반)
     report.events.push("슬럼프");
   }
 
-  // (3) 시뮬레이션
+  return { report, mod, gameFactor, restFactor, focusKeys, parts: [] };
+}
+
+// 시즌 일부 경기 (from~to: 0~1 사이 비율). 앞뒤로 나눠 치르면 기록을 합침
+// ctx.partMod: 트레이드 마감·사기 같은 구간별 컨디션 (phases.js)
+function playPart(player, ctx, from, to) {
+  const league = LEAGUES[player.league];
+  const report = ctx.report;
+  const share = to - from;
+  const mod = ctx.mod + (ctx.partMod || 0);
   const ovrs = getOvrs(player);
+  const part = { from, to, mod };
   if (ovrs.bat !== null) {
     const plan = batterPlan(player, ovrs.bat);
     const batPos = player.position.split(" 겸 ").pop();
-    report.bat = steadyBattingSeason(
-      player.stats,
-      league.level,
-      Math.round(plan.games * gameFactor * restFactor),
-      plan.pa,
-      mod,
-      batPos,
-      LEAGUE_ENV[player.league],
-    );
-    report.bat.role = plan.label;
-    if (plan.label.startsWith("주전")) lineupEffect(player, report.bat); // 타순 (world.js)
+    const games = Math.round(plan.games * ctx.gameFactor * ctx.restFactor * share);
+    const b = steadyBattingSeason(player.stats, league.level, games, plan.pa, mod, batPos, LEAGUE_ENV[player.league]);
+    b.role = plan.label;
+    if (plan.label.startsWith("주전")) lineupEffect(player, b); // 타순 (world.js)
+    part.bat = b;
+    report.bat = report.bat ? addSeason(report.bat, b, true) : b;
   }
   if (ovrs.pit !== null) {
     const plan = pitcherPlan(player, ovrs.pit);
-    report.pit = steadyPitchingSeason(player.stats, league.level, plan.role, Math.round(plan.games * gameFactor * restFactor), mod, LEAGUE_ENV[player.league]);
-    report.pit.role = plan.label;
+    const games = Math.round(plan.games * ctx.gameFactor * ctx.restFactor * share);
+    const p = steadyPitchingSeason(player.stats, league.level, plan.role, games, mod, LEAGUE_ENV[player.league]);
+    p.role = plan.label;
+    part.pit = p;
+    report.pit = report.pit ? addSeason(report.pit, p, false) : p;
   }
+  ctx.parts.push(part);
+  report.WAR = round((report.bat ? report.bat.WAR : 0) + (report.pit ? report.pit.WAR : 0), 1);
+  return part;
+}
+
+// 시즌 마무리: 순위·수상·성장·연봉·기사
+function finishSeason(player, ctx) {
+  const report = ctx.report;
+  const mod = ctx.mod;
+  const gameFactor = ctx.gameFactor;
+  const focusKeys = ctx.focusKeys;
   report.WAR = round((report.bat ? report.bat.WAR : 0) + (report.pit ? report.pit.WAR : 0), 1);
   addSaber(report); // wRC+, FIP, K% (saber.js)
   report.gameFactor = gameFactor; // 1군 등록일수 계산용
@@ -217,7 +251,7 @@ function runSeason(player, focusKeys) {
   historicMoment(player, report);
 
   // (4) 팀 순위, 리그 기록 순위, 수상
-  teamStanding(player, report);
+  if (!ctx.standingDone) teamStanding(player, report); // 4구간 시즌은 후반기 끝날 때 미리 정함 (phases.js)
   statRanks(player, report);
   makeLeaders(player, report); // 리그 리더보드 (almanac.js)
   checkAwards(player, report);
@@ -458,6 +492,7 @@ function moveCareer(player, report) {
     let faNow = false;
     if (c && c.isFA) {
       c.years--;
+      contractYearEnd(player, report); // 옵트아웃 시점 (contract.js)
       if (c.years <= 0) {
         if (isKboFaEligible(player)) {
           pushChoice(player, faChoice(player, faText(player, "계약이 끝나고 FA 재자격을 얻었어요!")));
@@ -471,7 +506,7 @@ function moveCareer(player, report) {
       if (isKboFaEligible(player)) {
         pushChoice(player, faChoice(player, faText(player, "FA 자격을 얻었어요!")));
         faNow = true;
-      }
+      } else if (lg === "KBO") maybeArbitration(player, report, "kbo"); // 연봉 차이 크면 조정 신청 (contract.js)
     }
     if (!faNow) maybePosting(player, report); // 1군 7시즌 + 구단 동의면 포스팅
     if (!faNow) maybeAfterTrade(player, report); // 쓸모없으면 시즌 뒤 강제 트레이드 (extra.js)
@@ -493,6 +528,7 @@ function moveCareer(player, report) {
   } else if (lg === "NPB" || lg === "MLB") {
     const c = player.contract;
     c.years--;
+    contractYearEnd(player, report); // 옵트아웃 시점 (contract.js)
     if (lg === "MLB") player.mlbService = (player.mlbService || 0) + 1; // 부상자 명단도 서비스타임에 들어감
     if (ovr < LEAGUES[lg].level - 10) {
       // 방출: 국내 복귀 제안
@@ -563,6 +599,7 @@ function resolveChoice(player, id) {
     const wasAbroad = ["MLB", "NPB", "MILB"].includes(player.league);
     signContract(player, o);
     recordFaDeal(player, o); // FA로 번 돈 (extra.js)
+    const terms = applyContractTerms(player, o, oldTeam, stayed); // 조항·역할 약속·에이전트 성향 (contract.js)
     if (o.mega) player.megaSigned = true; // 업적용
     const values = { team: o.team, total: fmtMoney(o.total), years: o.years };
     if (stayed) news.push(fillText(NEWS.special.stay, player, values));
@@ -574,6 +611,7 @@ function resolveChoice(player, id) {
     if (move) news.push(move.line);
     if (!stayed && TOP_LEAGUES.includes(o.league)) pressSigning(player, oldTeam); // 입단 기자회견 (press.js)
     news.push(...faPathResult(player, o, stayed)); // 돈 / 우승 / 고향 (dilemma.js)
+    news.push(...terms);
   } else if (choice.key === "agent") {
     news.push(...resolveAgent(player, choice, option)); // 에이전트 (agent.js)
   } else if (choice.key === "press") {

@@ -257,5 +257,6 @@ function showLocker(player) {
   html += `</ul><p class="small">사기가 높으면 시즌 컨디션 +1, 낮으면 -1. 멘토와 가까우면 성장이 조금 빨라지고, 후배를 챙기면 지도자 평판이 쌓여요.</p>`;
   if (player.oldMates && player.oldMates.length)
     html += `<p class="small">옛 동료: ${player.oldMates.map((m) => `${m.name}(${shortTeam(m.team)})`).join(", ")}</p>`;
+  html += groupsHtml(player); // 베테랑파·젊은 피·외국인 (clubhouse.js)
   box.innerHTML = html;
 }

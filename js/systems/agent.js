@@ -4,12 +4,16 @@
 // - 국내 에이전시: 수수료 3%, 조건 조금 올려줌
 // - 대형 에이전시: 수수료 5% (KBO 공인 에이전트 수수료 상한 5% 참고), 조건 크게 올리고 해외 구단 연결
 // - 수수료는 에이전트가 맺은 계약의 계약금·연봉에서 떼감
+// - 데이터형 에이전시: 수수료 4%, 인센티브 조항·연봉조정 청문회에 강함
+// - 성향(style): gentle 신사형 / aggressive 공격형 / data 데이터형 → contract.js 에서 씀
 // - 이름은 가상 회사임. 바꾸려면 AGENCIES만 고치면 됨
 // =============================================
 
 const AGENCIES = {
   local: {
     id: "local",
+    style: "gentle",
+    styleLabel: "신사형",
     name: "한빛 스포츠 매니지먼트",
     boss: "한정훈 대표",
     rate: 0.03,
@@ -17,10 +21,25 @@ const AGENCIES = {
     nego: 0.12,
     withdraw: 0.15,
     pitch: '"구단들 사정은 제가 제일 잘 압니다. 원소속팀이랑도 얼굴 붉히지 않게 정리해 드릴게요."',
-    desc: "수수료 3% · 제안 +4~8% · 모든 구단과 협상 가능 · 협상 성공률 조금 ↑",
+    desc: "🤵 신사형 · 수수료 3% · 제안 +4~8% · 떠나도 친정과 얼굴 안 붉힘",
+  },
+  data: {
+    id: "data",
+    style: "data",
+    styleLabel: "데이터형",
+    name: "넘버스 베이스볼 에이전시",
+    boss: "윤서진 대표",
+    rate: 0.04,
+    boost: [1.05, 1.1],
+    nego: 0.16,
+    withdraw: 0.13,
+    pitch: '"감으로 협상 안 합니다. 선수님 가치는 숫자로 증명해 드릴게요. 인센티브 조항도 꼼꼼히 챙깁니다."',
+    desc: "📊 데이터형 · 수수료 4% · 제안 +5~10% · 인센티브 조항 잘 따옴 · 연봉조정 청문회에 강함",
   },
   big: {
     id: "big",
+    style: "aggressive",
+    styleLabel: "공격형",
     name: "스톤 스포츠 그룹",
     boss: "마크 스톤 대표",
     rate: 0.05,
@@ -29,7 +48,7 @@ const AGENCIES = {
     withdraw: 0.1,
     mega: true,
     pitch: '"시장 최고 대우가 아니면 사인하지 마세요. 메이저리그 구단들 전화번호는 제가 다 갖고 있습니다."',
-    desc: "수수료 5% · 제안 +8~15% · 해외 구단 연결 · 메가 계약도 협상 · 협상 성공률 크게 ↑",
+    desc: "🦈 공격형 · 수수료 5% · 제안 +8~15% · 해외 구단 연결 · 옵트아웃·거부권 잘 따옴 · 친정 팬들은 싫어함",
   },
 };
 
@@ -53,7 +72,7 @@ function agentPitch(player, reason) {
   player.agentAsked = player.season;
   const opts = [];
   const big = overseasTalent(player);
-  const show = big ? [AGENCIES.big, AGENCIES.local] : [AGENCIES.local];
+  const show = big ? [AGENCIES.big, AGENCIES.data, AGENCIES.local] : [AGENCIES.local, AGENCIES.data];
   for (const a of show) opts.push({ id: a.id, label: `🕴️ ${a.name}와 계약`, detail: a.desc });
   opts.push({ id: "self", label: "혼자 협상한다", detail: "수수료 없음 · 지금처럼 원소속팀·급한 팀과만 직접 협상" });
   const lead = big ? AGENCIES.big : AGENCIES.local;

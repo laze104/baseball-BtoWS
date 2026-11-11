@@ -112,21 +112,62 @@ function postseasonSeeds(lg, all) {
   return seeds;
 }
 
+// 팀 승률: 시즌 전력(시즌마다 한 번 굴림) + 내 활약 + 감독·FA 보너스
+// war: 시즌 전체 페이스로 본 내 WAR
+function teamPct(player, report, team, lg, war) {
+  if (!report.teamBase) report.teamBase = {};
+  if (report.teamBase[team] === undefined) report.teamBase[team] = (Math.random() + Math.random() - 1) * 0.12;
+  let pct = 0.5 + report.teamBase[team];
+  if (lg === "COLLEGE") pct += ((COLLEGES.find((c) => c.name === team) || { tier: 2 }).tier - 2) * 0.06; // 대학은 야구부 전력 차이가 큼
+  if (team === player.team) pct += war * 0.006; // 내 활약이 팀 승률에 보탬
+  if (lg === "KBO" && player.managers && player.managers[team] && player.managers[team].legend) pct += 0.015; // 레전드 감독 효과
+  pct += standingBonus(player, team, lg, report.year); // 우승 전력 FA, 선수단 미팅, 신생구단 (flow.js)
+  return pct;
+}
+
+// 전반기 순위 (phases.js). 후반기 끝나면 teamStanding 이 여기에 이어서 계산함
+function halfStanding(player, report) {
+  const lg = player.league;
+  const teams = TEAMS[lg];
+  if (lg === "MILB" || !teams || !teams.includes(player.team)) return null;
+  const games = STANDING_GAMES[lg] || LEAGUES[lg].games;
+  const g1 = Math.round(games / 2);
+  const table = teams.map((team) => {
+    const pct = teamPct(player, report, team, lg, report.WAR * 2) + (Math.random() - 0.5) * 0.06;
+    const w = Math.round(g1 * clamp(pct, 0.3, 0.7));
+    return { team, w, l: g1 - w };
+  });
+  report.half1Table = table;
+  report.half1WAR = report.WAR;
+  const group = groupOf(lg, player.team);
+  const view = (group ? table.filter((t) => group.teams.includes(t.team)) : table).slice().sort((a, b) => b.w - a.w);
+  const rank = view.findIndex((t) => t.team === player.team) + 1;
+  return { rank, teams: view.length, w: view[rank - 1].w, l: view[rank - 1].l, table: view, group: group ? group.name : null };
+}
+
 function teamStanding(player, report) {
   const lg = player.league;
   if (lg === "MILB") return; // 마이너리그는 순위표 생략
   const teams = TEAMS[lg];
   if (!teams || !teams.includes(player.team)) return;
   const games = STANDING_GAMES[lg] || LEAGUES[lg].games;
-  const all = teams.map((team) => {
-    let pct = 0.5 + (Math.random() + Math.random() - 1) * 0.12;
-    if (lg === "COLLEGE") pct += ((COLLEGES.find((c) => c.name === team) || { tier: 2 }).tier - 2) * 0.06; // 대학은 야구부 전력 차이가 큼
-    if (team === player.team) pct += report.WAR * 0.006; // 내 활약이 팀 승률에 보탬
-    if (lg === "KBO" && player.managers && player.managers[team] && player.managers[team].legend) pct += 0.015; // 레전드 감독 효과
-    pct += standingBonus(player, team, lg, report.year); // 우승 전력 FA, 선수단 미팅, 신생구단 (flow.js)
-    const w = Math.round(games * clamp(pct, 0.3, 0.7));
-    return { team, w, l: games - w };
-  });
+  let all;
+  if (report.half1Table) {
+    // 전반기 성적 + 후반기 (phases.js). 트레이드됐으면 후반기 내 활약은 새 팀 몫
+    const war2 = report.WAR - (report.half1WAR || 0);
+    all = teams.map((team) => {
+      const h = report.half1Table.find((t) => t.team === team) || { w: 0, l: 0 };
+      const g2 = games - h.w - h.l;
+      const pct = teamPct(player, report, team, lg, war2 * 2) + (Math.random() - 0.5) * 0.06;
+      const w2 = Math.round(g2 * clamp(pct, 0.3, 0.7));
+      return { team, w: h.w + w2, l: h.l + g2 - w2 };
+    });
+  } else {
+    all = teams.map((team) => {
+      const w = Math.round(games * clamp(teamPct(player, report, team, lg, report.WAR), 0.3, 0.7));
+      return { team, w, l: games - w };
+    });
+  }
   const seeds = postseasonSeeds(lg, all);
   const group = groupOf(lg, player.team);
   const table = (group ? all.filter((t) => group.teams.includes(t.team)) : all).sort((a, b) => b.w - a.w);
@@ -845,7 +886,7 @@ function specialMeeting(player, wish, who) {
 }
 
 function canMeetManager(player) {
-  return !player.retired && !isAmateur(player.league) && !isServing(player) && player.meetingSeason !== player.season;
+  return !player.retired && !player.cur && !isAmateur(player.league) && !isServing(player) && player.meetingSeason !== player.season; // 시즌 중엔 면담 없음
 }
 
 function meetingWishes(player) {
@@ -874,27 +915,12 @@ function managerTitle(player) {
   return `${m.legend ? "👑 " : ""}${m.name} 감독`;
 }
 
-// 감독이 보는 점수: 실력 차이 + 최근 성적 + 팀 내 입지 + 요청별 능력치 + 감독 스타일
+// 감독이 보는 점수: 실력·성적·캠프·라커룸 입지·팬심·신뢰·팀 사정·스타일 (clubhouse.js managerView 합계)
 function managerScore(player, wish) {
-  const ovrs = getOvrs(player);
-  const ovr = wish.side === "pit" ? ovrs.pit : wish.side === "bat" ? ovrs.bat : ovrs.best;
-  const style = managerOf(player).style;
-  let s = (ovr || 0) - LEAGUES[player.league].level;
-  s += clamp(recentWar(player) - 2, -3, 3) * (style === "results" ? 1.5 : 1);
-  if (style === "trust" && (wish.id === "regular" || wish.id === "pinch")) s += 2;
-  if (style === "run" && wish.id === "leadoff") s += 2;
-  if (style === "pitch" && wish.side === "pit") s += 1.5;
-  if (style === "results") s -= 1;
-  if (style === "defense" && player.stats.defense !== undefined && wish.side === "bat") s += (player.stats.defense - LEAGUES[player.league].level) / 5;
-  if (style === "youth") s += player.age <= 24 ? 2 : player.age >= 32 ? -1 : 0;
-  if (style === "training") s -= 1;
-  if (style === "freedom") s += player.age >= 30 ? 2 : 0;
-  if (isFranchiseHere(player)) s += 2;
-  if (player.trustTeam === player.team) s += player.managerTrust || 0; // 각오를 전해서 쌓은 신뢰
-  s += clamp((player.fame || 0) / 30, -1, 1.5);
-  s += fanManagerBonus(player); // 우리 팀 팬심 (fandom.js)
-  s += wish.extra(player);
-  return round(s, 1);
+  return round(
+    managerView(player, wish).reduce((sum, x) => sum + x.v, 0),
+    1,
+  );
 }
 
 // talkBonus, talk: 대화 면담 결과 (talk.js). 없으면 예전처럼
@@ -903,7 +929,8 @@ function meetManager(player, wishId, talkBonus, talk) {
   const wish = MEETING_WISHES.find((w) => w.id === wishId);
   player.meetingSeason = player.season;
   if (wish.special) return { wish, score: 0, ...specialMeeting(player, wish, managerTitle(player)) };
-  const score = round(managerScore(player, wish) + (talkBonus || 0), 1);
+  const view = managerView(player, wish);
+  const score = round(view.reduce((sum, x) => sum + x.v, 0) + (talkBonus || 0), 1);
   const m = managerOf(player);
   const campRange = (m.style === "talk" ? 4.5 : 3) + (talk.camp ? 1.5 : 0); // 캠프에서 증명하겠다고 하면 캠프 기회 더 줌
   let result;
@@ -934,7 +961,7 @@ function meetManager(player, wishId, talkBonus, talk) {
     }
     news = `${player.name}, 감독 면담에서 요청 거절당해`;
   }
-  return { wish, result, line, news, score };
+  return { wish, result, line, news, score, view, need: wish.need };
 }
 
 function applyWish(player, id) {

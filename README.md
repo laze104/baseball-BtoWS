@@ -31,10 +31,16 @@ js/
     national.js  story.js  boxscore.js  nemesis.js  agent.js
     dilemma.js  body.js  locker.js  living.js  era.js
     ceremony.js  cards.js  fanfare.js  fandom.js  meme.js  sns.js
+    contract.js     계약 조항·역할 약속·에이전트 성향·연봉조정 청문회
+    clubhouse.js    라커룸 그룹 + 감독이 보는 점수 (managerView)
+    analysis.js     분석실 (코스별 히트맵·구종 약점)
+    gala.js         연말 시상식 수상 소감
+    phases.js       프로 시즌 4구간 (캠프·전반기·후반기·가을야구)
   flow.js           시스템들을 시즌 흐름에 꽂는 곳
   ui/               화면
     effects.js      토스트, 숫자 카운트업
-    talk.js         감독 면담 1대1 대화 팝업
+    talk.js         감독 면담 1대1 대화 팝업 (말투·기분·관계·기억)
+    charts.js       선 그래프 (홈런왕 레이스, 시즌 페이스, 커리어)
     main.js         화면 그리기, 버튼 연결, 저장/불러오기
 ```
 
@@ -63,6 +69,19 @@ js/
  → 고르면 resolveChoice (career.js) → 따로 빼둔 건 resolveSideChoice (flow.js)
  → 큰 화면 알림(report.bigMoments), 토스트(report.toasts)
 ```
+
+## 프로 시즌 4구간 (v0.19)
+
+```
+[🌴 스프링캠프 시작] → 캠프 창: 프로그램 1개 + 시즌 목표 3개
+  startCamp (phases.js) = startSeason + 연습경기 → player.cur 에 진행 중 시즌 저장
+[⚾ 전반기 진행] playFirstHalf = playPart(0~0.5) + 전반기 순위 + 월간 MVP
+  → 트레이드 마감 / 역할 약속 / 라커룸 그룹 메일
+[⚾ 후반기 진행] playSecondHalf = playPart(0.5~1) + 최종 순위
+[🍂 가을야구] finishPhased = finishSeason (포스트시즌·시상·성장·afterSeason)
+```
+- 아마추어·사회복무는 예전처럼 runSeason 한 번에 끝남
+- 시즌 중 기사는 report.news 에 쌓였다가 시즌 끝 총평 뒤에 붙음
 
 ## 새 기능 넣는 순서 (예: 새 시스템 `xxx.js`)
 

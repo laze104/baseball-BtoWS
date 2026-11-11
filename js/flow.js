@@ -28,12 +28,14 @@ function afterSeason(player, report) {
   maybeCoachPitch(player, report);
   lockerSeason(player, report);
   lockerSetup(player);
+  groupSeason(player, report); // 라커룸 그룹·주장 투표 (clubhouse.js)
   maybeLockerEvent(player, report);
   legendEvents(player, report);
   const before = (report.bigMoments || []).length;
   recordHunt(player, report);
   if ((report.bigMoments || []).slice(before).some((m) => m.tone === "gold")) moreComments(player, report, FAN.record, 3);
   eraSeason(player, report);
+  analysisSeason(player); // 코스별 개인차 조금씩 흔들림 (analysis.js)
   maybeFixingOffer(player, report);
   // 돈따라 이적 밈은 몇 년 따라다님
   if (player.moneyMeme && Math.random() < 0.35) moreComments(player, report, FAN.moneyMeme, 1);
@@ -49,6 +51,7 @@ function afterSeason(player, report) {
   fandomSeason(player, report); // 팀 팬심, 이적, 친정 야유 (fandom.js)
   memeSeason(player, report); // 밈 생기고·터지고·뒤집기 (meme.js)
   maybeSnsIssue(player, report); // 논란 메일 (sns.js)
+  galaSeason(player, report); // 연말 시상식 소감·공약 (gala.js)
 }
 
 function moreComments(player, report, pool, n) {
@@ -58,7 +61,24 @@ function moreComments(player, report, pool, n) {
 }
 
 // 선택지 처리 (career.js resolveChoice)
-const SIDE_CHOICE_KEYS = ["sns", "hiddenPain", "fixing", "surgery", "styleChange", "convert", "coachPitch", "locker", "expansionDraft"];
+const SIDE_CHOICE_KEYS = [
+  "sns",
+  "hiddenPain",
+  "fixing",
+  "surgery",
+  "styleChange",
+  "convert",
+  "coachPitch",
+  "locker",
+  "expansionDraft",
+  "deadline",
+  "promiseBroken",
+  "optOut",
+  "arbStart",
+  "arbRound",
+  "gala",
+  "lockerSide",
+];
 function resolveSideChoice(player, choice, option) {
   switch (choice.key) {
     case "sns":
@@ -79,6 +99,19 @@ function resolveSideChoice(player, choice, option) {
       return resolveLocker(player, choice, option);
     case "expansionDraft":
       return resolveExpansionDraft(player, choice, option);
+    case "deadline":
+      return resolveDeadline(player, choice, option); // 트레이드 마감 (phases.js)
+    case "promiseBroken":
+      return resolvePromiseBroken(player, choice, option); // 계약 때 역할 약속 (contract.js)
+    case "optOut":
+      return resolveOptOut(player, choice, option);
+    case "arbStart":
+    case "arbRound":
+      return resolveArb(player, choice, option); // 연봉조정 청문회 (contract.js)
+    case "gala":
+      return resolveGala(player, choice, option); // 시상식 소감 (gala.js)
+    case "lockerSide":
+      return resolveLockerSide(player, choice, option); // 라커룸 그룹 (clubhouse.js)
   }
   return [];
 }
@@ -96,6 +129,12 @@ function sidePool(key, option, player) {
   if (key === "coachPitch") return id === "learn" ? FAN.coachPitch : FAN.good;
   if (key === "locker") return FAN.locker;
   if (key === "expansionDraft") return FAN.expansion;
+  if (key === "deadline") return player.lastDeadline === "go" ? FAN.deadlineGo : FAN.deadlineStay;
+  if (key === "promiseBroken") return player.lastPromise === "ok" ? FAN.promiseOk : FAN.promiseBad;
+  if (key === "optOut") return id === "out" ? FAN.optOut : FAN.good;
+  if (key === "arbStart" || key === "arbRound") return { win: FAN.arbWin, lose: FAN.arbLose, settle: FAN.arbSettle }[player.lastArb] || FAN.contract;
+  if (key === "gala") return galaPool(player) || FAN.good;
+  if (key === "lockerSide") return FAN.lockerSide;
   return null;
 }
 

@@ -315,6 +315,34 @@ function steadyPitchingSeason(...args) {
 }
 
 // ---------------------------------------------
+// 전반기 + 후반기처럼 나눠 친 기록 합치기
+// 개수는 더하고, 비율(타율·평균자책 등)은 다시 계산함
+// ---------------------------------------------
+const RATE_KEYS = ["AVG", "OBP", "SLG", "OPS", "BABIP", "FPCT", "ERA", "WHIP"];
+function addSeason(a, b, isBat) {
+  const r = { ...a };
+  for (const k of Object.keys(b)) {
+    if (typeof b[k] !== "number" || RATE_KEYS.includes(k)) continue;
+    r[k] = (a[k] || 0) + b[k];
+  }
+  if (isBat) {
+    r.AVG = r.AB ? r.H / r.AB : 0;
+    r.OBP = r.PA ? ((a.OBP || 0) * (a.PA || 0) + (b.OBP || 0) * b.PA) / r.PA : 0;
+    r.SLG = r.AB ? (r.H + r.D + 2 * r.T + 3 * r.HR) / r.AB : 0;
+    r.OPS = r.OBP + r.SLG;
+    r.BABIP = babip(r);
+  } else {
+    r.ERA = r.outs ? (r.ER * 27) / r.outs : 0;
+    r.WHIP = r.outs ? ((r.H + r.BB) * 3) / r.outs : 0;
+    r.BABIP = pitBabip(r);
+  }
+  if (r.CH !== undefined) r.FPCT = r.CH ? (r.CH - r.E) / r.CH : 1;
+  r.WAR = round(r.WAR, 1);
+  if (a.role && b.role && a.role.split(" → ").pop() !== b.role) r.role = `${a.role} → ${b.role}`; // 시즌 중 역할 바뀜
+  return r;
+}
+
+// ---------------------------------------------
 // BABIP: 인플레이 타구가 안타 된 비율 (운 + 타구 질)
 // 타자 = (안타 - 홈런) / (타수 - 삼진 - 홈런)
 // 투수 = 피안타 기준 같은 식, 상대 타수는 아웃 + 피안타로 계산함

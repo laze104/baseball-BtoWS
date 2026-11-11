@@ -135,6 +135,7 @@ function isBombing(report) {
 }
 
 function consentChance(player, boost) {
+  if (overseasClauseOk(player)) return 0.97; // 계약서에 해외 진출 보장 (contract.js)
   const underContract = player.contract && player.contract.isFA && player.contract.years > 0;
   let p = underContract ? 0.55 : 0.85;
   if (boost) p += 0.1;
@@ -240,6 +241,7 @@ function mlbContractEnd(player, report) {
     report.specials.push({ key: "arbitration", years, salary: fmtMoney(salary) });
   }
   player.contract = { ...makeContract("MLB", player.team, 1, salary, 0), isFA: true, arb: true };
+  if (years >= FA_RULES.mlbArb) maybeArbitration(player, report, "mlb"); // 금액 차이 나면 청문회 (contract.js)
 }
 
 // ---------------------------------------------

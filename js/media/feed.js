@@ -30,6 +30,7 @@ const JOSA_PAIRS = {
   과: ["과", "와"],
   와: ["과", "와"],
   이랑: ["이랑", "랑"],
+  이라: ["이라", "라"],
   으로: ["으로", "로"],
 };
 function josaOf(word, j) {
@@ -182,8 +183,8 @@ function buildFeed(player, report) {
   const comments = shuffle(texts.map((t) => makeComment(t, player, extra, grade === "bad" ? "hot" : "normal")));
   addReplies(comments, player, extra);
 
-  report.news = news;
-  report.comments = comments;
+  report.news = [...news, ...(report.news || [])]; // 시즌 중에 나온 기사(캠프·월간 MVP·트레이드 마감)는 뒤에 붙임
+  report.comments = [...comments, ...(report.comments || [])];
   maybeAggro(player, report); // 어그로 기사 (news.js)
   makePost(player, report, grade); // 커뮤 글 제목·본문
   applySkin(report); // 갤러리형 / 커뮤형 게시판

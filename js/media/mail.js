@@ -37,6 +37,13 @@ const MAIL_SENDERS = {
   locker: { from: "라커룸", icon: "👕", subject: "동료가 할 말이 있대요" },
   banned: { from: "KBO 상벌위원회", icon: "⚖️", subject: "징계 결과 통보" },
   hookPitch: { from: "전력분석팀", icon: "📊", subject: "상대 분석 자료" },
+  deadline: { from: "구단 운영팀", icon: "📦", subject: "트레이드 마감 관련" },
+  promiseBroken: { from: "매니지먼트", icon: "📋", subject: "계약 조건 관련" },
+  optOut: { from: "구단 운영팀", icon: "🚪", subject: "옵트아웃 권리 안내" },
+  arbStart: { from: "구단 운영팀", icon: "⚖️", subject: "연봉 협상 결렬" },
+  arbRound: { from: "연봉조정위원회", icon: "⚖️", subject: "청문회 진행 중" },
+  gala: { from: "시상식 사무국", icon: "🏆", subject: "수상 소감 순서 안내" },
+  lockerSide: { from: "라커룸", icon: "👕", subject: "라커룸 분위기" },
 };
 const MAIL_DEFAULT = { from: "구단 사무국", icon: "📨", subject: "확인이 필요한 일" };
 
@@ -58,7 +65,8 @@ function mailboxHtml(player) {
   const choice = player.pendingChoice;
   const mails = unreadMails(player).filter((c) => c.key !== "clutch");
   const info = mailInfo(choice);
-  const when = `${gameYear(player)}년 ${player.league === "HS" || player.league === "COLLEGE" ? "겨울방학" : "비시즌"}`;
+  const stage = player.cur ? { camp: "스프링캠프", half1: "올스타 휴식기", half2: "정규시즌 끝" }[player.phase] : null; // 시즌 중 메일 (phases.js)
+  const when = `${gameYear(player)}년 ${stage || (player.league === "HS" || player.league === "COLLEGE" ? "겨울방학" : "비시즌")}`;
   let html = `<div class="mailbox"><div class="mail-head">📬 받은 메일함 <small>안 읽은 메일 ${mails.length}통</small></div>`;
   if (mails.length > 1) {
     html += `<ul class="mail-list">${mails

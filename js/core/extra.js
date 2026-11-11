@@ -100,6 +100,12 @@ function makeSplits(player, report) {
   const side = report.bat ? "bat" : "pit"; // 월별 그래프(story.js)랑 같은 기준
   const rec = report[side];
   if (!rec || !rec.G) return;
+  if (report.monthsData && report.monthsData.length === months.length) {
+    // 4구간 시즌: 실제로 친 전반기·후반기 기록에서 나온 월별 값 (phases.js)
+    const f = report.monthsData.map((d) => (side === "bat" ? d.f : d.ERA ? rec.ERA / d.ERA : 1.5));
+    report.splits = { side, months, f: f.map((x) => clamp(x, 0.4, 2)) };
+    return;
+  }
   // 달마다 들쭉날쭉 + 특성 있는 시기에는 확 올라감, 평균은 1로 맞춤
   // 1.2 = 그 달은 평소보다 20% 잘함 (타율은 곱하고 평균자책은 나눔)
   const hot = (m) => trait && (trait.months.includes(m) || (m === 4 && trait.months.includes(3)));
@@ -291,6 +297,7 @@ function historicMoment(player, report) {
 // ---------------------------------------------
 function tradeable(player) {
   if (!["KBO", "KBO2"].includes(player.league) || isFranchiseHere(player)) return false;
+  if (hasClause(player, "noTrade")) return false; // 트레이드 거부권 (contract.js)
   if (player.contract && player.contract.isFA && player.contract.years >= 2) return false;
   if (player.age < 21) return false;
   return true;
@@ -301,9 +308,9 @@ function isBenchRole(report) {
   return report.league === "KBO2" || /백업|추격조|대체|대타/.test(roles);
 }
 
-function doTrade(player, report, when) {
+function doTrade(player, report, when, toTeam) {
   const from = player.team;
-  const to = pick(TEAMS.KBO.filter((t) => t !== from));
+  const to = toTeam || pick((TEAMS[player.league] || TEAMS.KBO).filter((t) => t !== from));
   player.team = to;
   if (player.contract) player.contract.team = to;
   player.traded = true;
@@ -398,7 +405,7 @@ function offerLabel(player, o) {
 
 function offerDetail(player, o) {
   const back = o.league === "KBO" && ["MLB", "NPB", "MILB"].includes(player.league) && player.age >= 31;
-  return `${faPathTags(o)}${o.agentFound ? "🕴️ 에이전트가 물어온 제안 · " : ""}${o.need ? `🔥 ${o.need} 급구 · ` : ""}${back ? "KBO 복귀 · " : ""}${o.mega ? "💰 메가 계약 · " : ""}${o.veteran ? (o.years === 2 ? "1+1년 (베테랑 단기 계약) · " : "1년 단기 계약 · ") : ""}${o.years}년 총액 ${fmtMoney(o.total)}${o.bonus ? ` · 계약금 ${fmtMoney(o.bonus)}` : ""} · 연봉 ${fmtMoney(o.salary)}${o.change ? ` · ${o.change}` : ""}`;
+  return `${faPathTags(o)}${o.agentFound ? "🕴️ 에이전트가 물어온 제안 · " : ""}${o.need ? `🔥 ${o.need} 급구 · ` : ""}${back ? "KBO 복귀 · " : ""}${o.mega ? "💰 메가 계약 · " : ""}${o.veteran ? (o.years === 2 ? "1+1년 (베테랑 단기 계약) · " : "1년 단기 계약 · ") : ""}${o.years}년 총액 ${fmtMoney(o.total)}${o.bonus ? ` · 계약금 ${fmtMoney(o.bonus)}` : ""} · 연봉 ${fmtMoney(o.salary)}${o.change ? ` · ${o.change}` : ""}${clauseTags(o)}`; // 조항·역할 (contract.js)
 }
 
 // 협상 가능한 팀: 원소속팀, 내 자리가 급한 팀
@@ -502,6 +509,7 @@ function faNegoChoice(player, choice) {
 // FA 선택지 (money.js faChoice가 이걸 씀)
 function buildFaChoice(player, reason, offers, table) {
   markFaPaths(player, offers); // 💰 최고액 / 🏆 우승 전력 / 🏠 고향 팀 (dilemma.js)
+  for (const o of offers) attachClauses(player, o); // 옵트아웃·거부권·인센티브·역할 (contract.js)
   const options = offers.map((o, i) => ({ id: `offer${i}`, label: offerLabel(player, o), detail: offerDetail(player, o), offer: o }));
   if (player.league === "KBO" || player.league === "KBO2") {
     options.push({ id: "nofile", label: "FA 신청 안 하고 잔류", detail: "원소속팀과 1년 연봉 계약 · FA 자격은 유지돼요" });

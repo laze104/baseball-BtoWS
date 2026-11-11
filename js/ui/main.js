@@ -125,7 +125,7 @@ function createPlayer(info) {
 // ---------------------------------------------
 
 // 통산 기록·연감·순위는 '기록' 탭 아래 하위 탭으로 묶음
-const RECORD_SUBTABS = ["record", "almanac", "rank"];
+const RECORD_SUBTABS = ["record", "analysis", "almanac", "rank"];
 let lastRecordSub = "record";
 
 function setTab(name) {
@@ -216,8 +216,11 @@ function showPlayer(player) {
   showFocusChoices(player);
   showPositionPanel(player);
   showChoice(player);
-  showSeasonResult(player.lastReport);
+  if (player.cur)
+    $("tab-result").innerHTML = phaseProgressHtml(player); // 시즌 진행 중 (phases.js)
+  else showSeasonResult(player.lastReport);
   showBoard(player, player.lastReport);
+  showAnalysis(player); // 분석실 (analysis.js)
   showNews(player); // 뉴스 탭 (news.js)
   showRecord(player);
   showStandings(player); // 역대 순위 (extra.js)
@@ -228,7 +231,7 @@ function showPlayer(player) {
   showMoney(player);
   showAchievements($("tab-ach"));
 
-  retireButton.hidden = player.age < 33;
+  retireButton.hidden = player.age < 33 || !!player.cur; // 시즌 중엔 은퇴 버튼 숨김
   createScreen.hidden = true;
   retiredScreen.hidden = true;
   playerScreen.hidden = false;
@@ -246,10 +249,18 @@ function showFocusChoices(player) {
 }
 
 // 시즌 진행 버튼: 집중 능력치 2개 + 남은 선택지가 없어야 눌림
+// 4구간 시즌 중이면 집중 훈련은 캠프 때 고른 걸로 감 (phases.js)
 function refreshSeasonButton() {
-  const waiting = currentPlayer && currentPlayer.pendingChoice;
-  seasonButton.disabled = waiting || getCheckedFocus().length !== 2;
-  seasonButton.textContent = waiting ? "선택지를 먼저 골라 주세요" : "시즌 진행";
+  const p = currentPlayer;
+  const waiting = p && p.pendingChoice;
+  const inSeason = !!(p && p.cur);
+  seasonPanel.classList.toggle("in-season", inSeason);
+  $("phase-panel").innerHTML = inSeason
+    ? phaseStepsHtml(p.phase) +
+      `<p class="small">집중 훈련: ${(p.cur.focusKeys || []).map((k) => getStatNames(p.type)[k]).join(", ")} · 캠프 때 고른 대로 시즌 끝까지 가요</p>`
+    : "";
+  seasonButton.disabled = waiting || (!inSeason && getCheckedFocus().length !== 2);
+  seasonButton.textContent = waiting ? "선택지를 먼저 골라 주세요" : p ? phaseButtonText(p) : "시즌 진행";
 }
 
 function getCheckedFocus() {
@@ -363,8 +374,12 @@ function showChoice(player) {
       const key = choice.key;
       const awardsBefore = player.lastReport ? player.lastReport.awards.length : 0;
       logMail(player, choice, option); // 답장한 메일 보관 (mail.js)
+      const cur = player.cur ? player.cur.report : null;
+      const bigBefore = cur && cur.bigMoments ? cur.bigMoments.length : 0;
       const news = resolveChoice(player, option.id);
       const moments = choiceBigMoments(player, choice, option, news, awardsBefore);
+      moments.push(...takeArbMoment(player)); // 연봉조정 판정 (contract.js)
+      if (cur && cur.bigMoments && cur.bigMoments.length > bigBefore) moments.push(...cur.bigMoments.splice(bigBefore)); // 시즌 중 트레이드 같은 건 바로 보여줌
       moments.push(...memeAfterClutch(player, choice, news)); // 밈 생기기·뒤집기 (meme.js)
       if (!player.retired) news.push(...fandomMove(player, null)); // FA·트레이드로 팀 옮겼으면 팬심 (fandom.js)
       if (!player.retired) news.push(...checkAchievements(player).map((n) => `🏅 업적 달성: ${n}`));
@@ -373,7 +388,10 @@ function showChoice(player) {
         showRetired(player);
         return;
       }
-      addReaction(player, player.lastReport, news, reactionPool(key, option, player), { team: player.team, nick: player.nickname || "" });
+      addReaction(player, player.cur ? player.cur.report : player.lastReport, news, reactionPool(key, option, player), {
+        team: player.team,
+        nick: player.nickname || "",
+      });
       savePlayer(player);
       showPlayer(player);
       showBigMoments(moments);
@@ -432,8 +450,14 @@ function showSeasonResult(report) {
   if (report.collegeCups) html += hsTournamentHtml(report.collegeCups, "대학 전국대회 성적");
   if (report.standing && report.standing.table) html += standingTableHtml(report);
   if (report.standing && report.standing.monthly) html += monthlyChartHtml(report);
+  if (report.half1)
+    html += `<p class="small">전반기 ${report.half1.rank}위 (${report.half1.w}승 ${report.half1.l}패) → 최종 ${report.standing ? report.standing.rank + "위" : "-"}</p>`;
   if (report.bat) html += `<h4>타격 <small>${report.bat.role}</small></h4>` + batRecordHtml(report.bat);
   if (report.pit) html += `<h4>투구 <small>${report.pit.role}</small></h4>` + pitRecordHtml(report.pit);
+  html += seasonGoalsHtml(report); // 캠프 때 세운 목표 (phases.js)
+  if (report.monthlyMvp && report.monthlyMvp.length)
+    html += `<p class="chips awards">${report.monthlyMvp.map((m) => `<span>🗓️ ${m}월 ${report.league === "MLB" ? "이달의 선수" : "월간 MVP"}</span>`).join("")}</p>`;
+  html += raceChartHtml(report); // 홈런왕·탈삼진왕 레이스 (charts.js)
   html += trackingHtml(report); // 트래킹 데이터 (broadcast.js)
   html += nemesisResultHtml(report); // 숙적 맞대결 (nemesis.js)
   if (report.ranks) {
@@ -660,8 +684,117 @@ function totalsAsPit(t) {
 }
 
 function showRecord(player) {
-  $("tab-record").innerHTML = recordHtml(player);
+  $("tab-record").innerHTML = careerChartsHtml(player) + recordHtml(player); // 커리어 그래프 (charts.js)
 }
+
+// ---------------------------------------------
+// 4구간 시즌 (phases.js)
+// ---------------------------------------------
+function phaseStep(player) {
+  if (!player.cur) {
+    openCamp(player);
+    return;
+  }
+  if (player.phase === "half2") {
+    const report = finishPhased(player);
+    player.lastReport = report;
+    const shown = report.toastShown || 0;
+    savePlayer(player);
+    showPlayer(player);
+    setTab("result");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    showBigMoments(seasonBigMoments(report));
+    showToasts((report.toasts || []).slice(shown));
+    return;
+  }
+  if (player.phase === "camp") playFirstHalf(player);
+  else playSecondHalf(player);
+  afterPhase(player);
+}
+
+// 구간 끝날 때마다: 새로 생긴 토스트·큰 알림만 보여줌
+function afterPhase(player) {
+  const r = player.cur.report;
+  const toasts = (r.toasts || []).slice(r.toastShown || 0);
+  r.toastShown = (r.toasts || []).length;
+  const moments = (r.bigMoments || []).splice(0); // 시즌 끝 화면에서 또 안 나오게 꺼냄
+  savePlayer(player);
+  showPlayer(player);
+  setTab("result");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  showBigMoments(moments);
+  showToasts(toasts);
+}
+
+// 스프링캠프 창: 프로그램 하나 + 시즌 목표 3개
+function openCamp(player) {
+  if (getCheckedFocus().length !== 2) return;
+  const d = campDraft(player);
+  savePlayer(player);
+  const modal = $("camp-modal");
+  const progs = campPrograms(player)
+    .map(
+      (c, i) =>
+        `<label class="camp-prog"><input type="radio" name="camp-prog" value="${c.id}" ${i === 0 ? "checked" : ""}><b>${c.icon} ${c.label}</b><small>${c.detail}</small></label>`,
+    )
+    .join("");
+  const goals = d.goals
+    .map(
+      (g, i) =>
+        `<label class="camp-goal ${g.kind}"><input type="checkbox" value="${i}"><b>${g.label}</b><small>${g.kind === "chal" ? "도전 · 달성하면 인기 +4" : "현실 · 달성하면 인기 +2"}</small></label>`,
+    )
+    .join("");
+  modal.querySelector(".camp-body").innerHTML = `<h3>🌴 ${gameYear(player)}년 스프링캠프 <small>${player.team}</small></h3>
+    ${d.expect ? `<p class="expect">🏢 구단 목표: <b>${d.expect.label}</b> <small>${d.expect.desc}</small></p>` : ""}
+    <p class="small">📊 데이터팀 예상: ${projectionLine(d.pj)}</p>
+    <h4>캠프 프로그램 <small>하나만</small></h4><div class="camp-progs">${progs}</div>
+    <h4>올 시즌 목표 <small>3개 고르기 · <span id="camp-count">0</span>/3</small></h4><div class="camp-goals">${goals}</div>
+    <p class="small">캠프 끝나고 연습경기를 치러요. 연습경기 성적은 감독이 봐요 (개막 컨디션·면담에 반영).</p>`;
+  $("camp-go").disabled = true;
+  modal.hidden = false;
+}
+
+$("camp-modal").addEventListener("change", (event) => {
+  const boxes = [...$("camp-modal").querySelectorAll(".camp-goals input:checked")];
+  if (boxes.length > 3) event.target.checked = false;
+  const n = $("camp-modal").querySelectorAll(".camp-goals input:checked").length;
+  $("camp-count").textContent = n;
+  $("camp-go").disabled = n !== 3;
+});
+
+$("camp-cancel").addEventListener("click", () => {
+  $("camp-modal").hidden = true;
+});
+
+$("camp-go").addEventListener("click", () => {
+  const modal = $("camp-modal");
+  const prog = modal.querySelector("input[name=camp-prog]:checked");
+  const goals = [...modal.querySelectorAll(".camp-goals input:checked")].map((x) => Number(x.value));
+  if (!prog || goals.length !== 3) return;
+  modal.hidden = true;
+  startCamp(currentPlayer, getCheckedFocus(), prog.value, goals);
+  afterPhase(currentPlayer);
+});
+
+// 분석실 '훈련 탭에서 체크하기'
+$("tab-analysis").addEventListener("click", (event) => {
+  const key = event.target.dataset.focus;
+  if (!key || !currentPlayer) return;
+  if (currentPlayer.cur) {
+    alert("시즌 중이라 집중 훈련은 다음 스프링캠프 때 바꿀 수 있어요.");
+    return;
+  }
+  const boxes = [...focusList.querySelectorAll("input")];
+  const target = boxes.find((b) => b.value === key);
+  if (!target) return;
+  if (!target.checked) {
+    const on = boxes.filter((b) => b.checked);
+    if (on.length >= 2) on[on.length - 1].checked = false;
+    target.checked = true;
+  }
+  refreshSeasonButton();
+  setTab("train");
+});
 
 // 시즌별·통산 기록표 (기록 탭과 은퇴 화면에서 같이 씀)
 // 상 이름표: 금메달은 금색, 은메달은 은색, 동메달은 동색
@@ -935,6 +1068,10 @@ seasonButton.addEventListener("click", () => {
   if (currentPlayer.pendingChoice) {
     // 혹시 모를 경우 한 번 더 막음
     choicePanel.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  if (usesPhases(currentPlayer)) {
+    phaseStep(currentPlayer); // 스프링캠프 → 전반기 → 후반기 → 가을야구
     return;
   }
   const report = runSeason(currentPlayer, getCheckedFocus());
