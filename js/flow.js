@@ -14,6 +14,42 @@ function standingBonus(player, team, lg, year) {
   return b;
 }
 
+// ---------------------------------------------
+// 4구간 시즌 구간마다 (phases.js playFirstHalf·playSecondHalf)
+// ---------------------------------------------
+// 구간 시작: 부상·2군·콜업·휴식 → 이번 구간에 원래 리그에서 뛰는 비율
+function beforeHalf(player, ctx, half) {
+  let out = halfInjury(player, ctx, half); // 부상 (injury.js)
+  if (half === 1) {
+    out += downHalf(player, ctx); // 2군 강등 (roster.js)
+    out += upHalf(player, ctx); // 콜업 (roster.js)
+    out += ctx.slumpRest || 0; // 슬럼프 휴식 열흘 (slump.js)
+    if (ctx.slumpRest) ctx.report.downDays = (ctx.report.downDays || 0) + ctx.slumpRest;
+  }
+  ctx.partFactor = clamp((HALF_DAYS - out) / HALF_DAYS, 0, 1);
+}
+
+// 구간 경기 끝난 직후: 연속 기록, 슬럼프 탈출
+function afterHalf(player, ctx, half, part) {
+  ctx.partFactor = 1;
+  streakHalf(player, ctx, half, part); // 연속 기록 (streak.js)
+  if (half === 1) slumpAfter(player, ctx, part); // slump.js
+}
+
+// 구간 사이 메일: 부상이 먼저, 그다음 2군·슬럼프·연장 계약, 징크스
+function halfBreak(player, ctx, half) {
+  if (half === 0) allStarHalf(player, ctx); // 전반기 성적으로 올스타 발표 (world.js)
+  const hurt = injuryBreak(player, ctx, half); // injury.js
+  if (half === 0 && !hurt) {
+    if (!demotionCheck(player, ctx) && !callupCheck(player, ctx)) {
+      // roster.js
+      if (!slumpCheck(player, ctx)) extensionCheck(player, ctx); // slump.js, extension.js
+    }
+    matchupPreview(player, ctx); // matchup.js
+  }
+  if (half === 0) streakBreak(player, ctx); // streak.js
+}
+
 // 시즌 끝 (runSeason 마지막)
 function afterSeason(player, report) {
   if (player.retired) return;
@@ -21,6 +57,7 @@ function afterSeason(player, report) {
   surgeryComeback(player, report);
   fixingInvestigation(player, report);
   if (player.banned) return; // 제명되면 다른 일은 없음
+  amateurSeason(player, report); // 고교·대학 이벤트 (amateur.js)
   maybeHiddenPain(player, report);
   maybeSurgeryChoice(player, report);
   maybeStyleChange(player, report);
@@ -36,6 +73,9 @@ function afterSeason(player, report) {
   if ((report.bigMoments || []).slice(before).some((m) => m.tone === "gold")) moreComments(player, report, FAN.record, 3);
   eraSeason(player, report);
   analysisSeason(player); // 코스별 개인차 조금씩 흔들림 (analysis.js)
+  matchupSeason(player, report); // 천적·킬러 (matchup.js)
+  compKidStory(player, report); // 내 보상선수 소식 (compensation.js)
+  protectSeason(player, report); // 보호선수 명단 (compensation.js)
   maybeFixingOffer(player, report);
   // 돈따라 이적 밈은 몇 년 따라다님
   if (player.moneyMeme && Math.random() < 0.35) moreComments(player, report, FAN.moneyMeme, 1);
@@ -78,6 +118,19 @@ const SIDE_CHOICE_KEYS = [
   "arbRound",
   "gala",
   "lockerSide",
+  "rehabPath",
+  "psReturn",
+  "demote",
+  "slump",
+  "routineMake",
+  "jinx",
+  "extension",
+  "compPicked",
+  "overuse",
+  "grades",
+  "transfer",
+  "hlVideo",
+  "rivalHs",
 ];
 function resolveSideChoice(player, choice, option) {
   switch (choice.key) {
@@ -112,6 +165,32 @@ function resolveSideChoice(player, choice, option) {
       return resolveGala(player, choice, option); // 시상식 소감 (gala.js)
     case "lockerSide":
       return resolveLockerSide(player, choice, option); // 라커룸 그룹 (clubhouse.js)
+    case "rehabPath":
+      return resolveRehabPath(player, choice, option); // 재활 단계 (injury.js)
+    case "psReturn":
+      return resolvePsReturn(player, choice, option);
+    case "demote":
+      return resolveDemote(player, choice, option); // 2군 강등 (roster.js)
+    case "slump":
+      return resolveSlump(player, choice, option); // slump.js
+    case "routineMake":
+      return resolveRoutine(player, choice, option); // 루틴·징크스 (streak.js)
+    case "jinx":
+      return resolveJinx(player, choice, option);
+    case "extension":
+      return resolveExtension(player, choice, option); // 비FA 다년계약 (extension.js)
+    case "compPicked":
+      return resolveCompPicked(player, choice, option); // 보상선수 (compensation.js)
+    case "overuse":
+      return resolveOveruse(player, choice, option); // 고교·대학 (amateur.js)
+    case "grades":
+      return resolveGrades(player, choice, option);
+    case "transfer":
+      return resolveTransfer(player, choice, option);
+    case "hlVideo":
+      return resolveHlVideo(player, choice, option);
+    case "rivalHs":
+      return resolveRivalHs(player, choice, option);
   }
   return [];
 }
@@ -120,6 +199,8 @@ function resolveSideChoice(player, choice, option) {
 function sidePool(key, option, player) {
   const id = option.id;
   if (key === "sns") return snsPool(player); // 논란 대응별 (sns.js)
+  const am = amateurPool(player, key); // 고교·대학 (amateur.js)
+  if (am) return am;
   if (key === "fa" && player.lastFaPath) return { money: FAN.moneyMove, home: FAN.homeTeam, win: FAN.winPath }[player.lastFaPath];
   if (key === "hiddenPain") return id === "hide" ? FAN.painHide : FAN.painTell;
   if (key === "fixing") return id === "report" ? FAN.fixReport : FAN.good; // 받거나 무시한 건 아무도 모름
@@ -135,6 +216,12 @@ function sidePool(key, option, player) {
   if (key === "arbStart" || key === "arbRound") return { win: FAN.arbWin, lose: FAN.arbLose, settle: FAN.arbSettle }[player.lastArb] || FAN.contract;
   if (key === "gala") return galaPool(player) || FAN.good;
   if (key === "lockerSide") return FAN.lockerSide;
+  if (key === "rehabPath" || key === "psReturn") return injuryPool(player);
+  if (key === "demote") return demotePool(player);
+  if (key === "slump") return slumpPool(player);
+  if (key === "routineMake" || key === "jinx") return jinxPool(player, key);
+  if (key === "extension") return extensionPool(player);
+  if (key === "compPicked") return compPool(player);
   return null;
 }
 

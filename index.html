@@ -63,61 +63,81 @@
 
         <button type="submit">선수 생성</button>
       </form>
-      <p id="version">v0.19</p>
+
+      <!-- 저장 파일 내보내기·불러오기 (backup.js) -->
+      <div id="backup-box">
+        <h3>💾 저장 파일 <small>다른 기기로 옮기거나 백업할 때</small></h3>
+        <p class="small">진행 중인 선수, 역대 랭킹, 명예의 전당, 업적이 파일 하나에 들어가요.</p>
+        <div class="backup-btns">
+          <button type="button" id="export-btn" class="secondary">내보내기</button>
+          <label class="file-btn">불러오기<input type="file" id="import-file" accept=".json,application/json" hidden /></label>
+        </div>
+        <p id="backup-msg" class="small"></p>
+      </div>
+      <p id="version">v0.20</p>
     </section>
 
     <!-- 화면 2: 선수 정보와 시즌 진행 (처음엔 숨김) -->
     <section id="player-screen" hidden>
       <div id="player-header"></div>
 
-      <!-- 진로 선택지 (드래프트 미지명, FA, 국가대표 등) -->
-      <div id="choice-panel" hidden></div>
-
-      <nav id="tabs">
-        <button data-tab="train" class="active">훈련</button>
-        <button data-tab="result">시즌 결과</button>
-        <button data-tab="news">뉴스</button>
-        <button data-tab="board">반응</button>
-        <button data-tab="mail">메일</button>
-        <button data-tab="records">기록</button>
-        <button data-tab="nemesis">숙적</button>
-        <button data-tab="locker">동료</button>
-        <button data-tab="money">재산</button>
-        <button data-tab="ach">업적</button>
-      </nav>
-      <!-- 기록 탭 누를 때만 보이는 하위 탭 -->
-      <nav id="subtabs" hidden>
-        <button data-tab="record">통산 기록</button>
-        <button data-tab="analysis">분석실</button>
-        <button data-tab="almanac">연감</button>
-        <button data-tab="rank">순위</button>
-      </nav>
-
-      <div class="tab" id="tab-train">
-        <div id="player-card"></div>
-        <div id="season-panel">
-          <h3>이번 시즌 집중 훈련 <small>(2개 선택, 나머지는 떨어질 수도 있어요)</small></h3>
-          <div id="focus-list"></div>
-          <div id="position-panel"></div>
-          <div id="phase-panel"></div>
-          <button id="season-button" disabled>시즌 진행</button>
-          <button id="retire-button" class="secondary" hidden>은퇴하기</button>
-        </div>
+      <!-- PC: 왼쪽 메뉴 / 가운데 / 오른쪽 피드 3단, 폰: 위에서 아래로 (css @media) -->
+      <div id="side-nav">
+        <nav id="tabs">
+          <button data-tab="train" class="active">훈련</button>
+          <button data-tab="result">시즌 결과</button>
+          <button data-tab="news">뉴스</button>
+          <button data-tab="board">반응</button>
+          <button data-tab="mail">메일</button>
+          <button data-tab="records">기록</button>
+          <button data-tab="nemesis">숙적</button>
+          <button data-tab="locker">동료</button>
+          <button data-tab="money">재산</button>
+          <button data-tab="ach">업적</button>
+        </nav>
+        <!-- 기록 탭 누를 때만 보이는 하위 탭 -->
+        <nav id="subtabs" hidden>
+          <button data-tab="record">통산 기록</button>
+          <button data-tab="analysis">분석실</button>
+          <button data-tab="almanac">연감</button>
+          <button data-tab="rank">순위</button>
+        </nav>
       </div>
-      <div class="tab" id="tab-result" hidden></div>
-      <div class="tab" id="tab-news" hidden></div>
-      <div class="tab" id="tab-board" hidden></div>
-      <div class="tab" id="tab-mail" hidden></div>
-      <div class="tab" id="tab-record" hidden></div>
-      <div class="tab" id="tab-analysis" hidden></div>
-      <div class="tab" id="tab-almanac" hidden></div>
-      <div class="tab" id="tab-nemesis" hidden></div>
-      <div class="tab" id="tab-locker" hidden></div>
-      <div class="tab" id="tab-rank" hidden></div>
-      <div class="tab" id="tab-money" hidden></div>
-      <div class="tab" id="tab-ach" hidden></div>
 
-      <button id="reset-button" class="secondary">처음부터 다시</button>
+      <main id="main-col">
+        <!-- 진로 선택지 (드래프트 미지명, FA, 국가대표 등) -->
+        <div id="choice-panel" hidden></div>
+
+        <div class="tab" id="tab-train">
+          <div id="player-card"></div>
+          <div id="season-panel">
+            <h3>이번 시즌 집중 훈련 <small>(2개 선택, 나머지는 떨어질 수도 있어요)</small></h3>
+            <div id="focus-list"></div>
+            <div id="position-panel"></div>
+            <div id="phase-panel"></div>
+            <button id="season-button" disabled>시즌 진행</button>
+            <button id="retire-button" class="secondary" hidden>은퇴하기</button>
+          </div>
+        </div>
+        <div class="tab" id="tab-result" hidden></div>
+        <div class="tab" id="tab-news" hidden></div>
+        <div class="tab" id="tab-board" hidden></div>
+        <div class="tab" id="tab-mail" hidden></div>
+        <div class="tab" id="tab-record" hidden></div>
+        <div class="tab" id="tab-analysis" hidden></div>
+        <div class="tab" id="tab-almanac" hidden></div>
+        <div class="tab" id="tab-nemesis" hidden></div>
+        <div class="tab" id="tab-locker" hidden></div>
+        <div class="tab" id="tab-rank" hidden></div>
+        <div class="tab" id="tab-money" hidden></div>
+        <div class="tab" id="tab-ach" hidden></div>
+
+        <button id="fast-button" class="secondary">⚡ 빠른 진행: 꺼짐</button>
+        <button id="reset-button" class="secondary">처음부터 다시</button>
+      </main>
+
+      <!-- PC 화면에서만 보이는 오른쪽 피드 (layout.js) -->
+      <aside id="side-col"></aside>
     </section>
 
     <!-- 화면 3: 은퇴 -->
@@ -206,6 +226,14 @@
     <script src="js/systems/clubhouse.js"></script>
     <script src="js/systems/analysis.js"></script>
     <script src="js/systems/gala.js"></script>
+    <script src="js/systems/injury.js"></script>
+    <script src="js/systems/roster.js"></script>
+    <script src="js/systems/slump.js"></script>
+    <script src="js/systems/streak.js"></script>
+    <script src="js/systems/matchup.js"></script>
+    <script src="js/systems/extension.js"></script>
+    <script src="js/systems/compensation.js"></script>
+    <script src="js/systems/amateur.js"></script>
     <script src="js/systems/phases.js"></script>
 
     <script src="js/flow.js"></script>
@@ -213,6 +241,8 @@
     <script src="js/ui/effects.js"></script>
     <script src="js/ui/talk.js"></script>
     <script src="js/ui/charts.js"></script>
+    <script src="js/ui/layout.js"></script>
+    <script src="js/ui/backup.js"></script>
     <script src="js/ui/main.js"></script>
   </body>
 </html>

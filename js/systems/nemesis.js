@@ -50,6 +50,7 @@ function makeNemeses(player, league) {
       team: otherTeam(player, league),
       age: clamp(player.age + randomInt(-4, 4), 19, 36),
       ovr: level + randomInt(-4, 8),
+      aff: matchupAff(), // 궁합 (안 보여줌). + 면 이 상대가 나한테 강함 → 천적 (matchup.js)
       stage: 0,
       tot: { PA: 0, H: 0, HR: 0, K: 0, BB: 0 },
       log: [],
@@ -68,6 +69,7 @@ function nemesisSeason(player, report) {
   const lg = report.league;
   if (!TOP_LEAGUES.includes(lg) || (!report.bat && !report.pit)) return;
   if (!player.nemeses.some((n) => n.league === lg)) makeNemeses(player, lg);
+  rivalToNemesis(player, report); // 고교 동기 라이벌이 같은 리그에 오면 숙적으로 (amateur.js)
   const level = LEAGUES[lg].level;
   const active = player.nemeses.filter((n) => n.league === lg && n.status === "active" && n.team !== report.team);
   // 한 시즌에 붙는 숙적은 3~5명 (같은 리그라도 매번 만나진 않음)
@@ -92,7 +94,8 @@ function nemesisSeason(player, report) {
 // 맞대결 한 시즌: 내 시즌 비율 기록에 상대 실력 차이를 섞음
 function matchup(mine, vsBat, n, level) {
   const PA = randomInt(9, 18);
-  const edge = (n.ovr - level) * 0.012 + (n.revenge ? 0.08 : 0); // 상대가 잘할수록, 복수심 있으면 나한테 불리
+  if (n.aff === undefined) n.aff = matchupAff(); // 예전 저장 데이터
+  const edge = (n.ovr - level) * 0.012 + (n.revenge ? 0.08 : 0) + n.aff; // 상대가 잘할수록, 복수심 있으면, 궁합 나쁘면 나한테 불리
   let hit, hr, k, bb;
   if (vsBat) {
     hit = mine.AB ? mine.H / mine.PA : 0.24;
@@ -297,11 +300,17 @@ function showNemesis(player) {
     box.innerHTML = "<p class='empty'>아직 숙적이 없어요. KBO·NPB·MLB 1군에서 뛰면 자주 만나는 상대가 생겨요.</p>";
     return;
   }
-  let html = `<p class="small">1군에서 자주 붙는 상대들이에요. 많이 만나고, 크게 이기거나 지면 관계가 깊어져요.</p><div class="nem-cards">`;
+  let html = matchupTableHtml(player); // 상대 전적 (matchup.js)
+  html += `<h4>⚔️ 숙적 <small>많이 만나고, 크게 이기거나 지면 관계가 깊어져요</small></h4><div class="nem-cards">`;
   for (const n of list) {
     const ab = Math.max(1, n.tot.PA - n.tot.BB);
     const vsBat = n.type === "pitcher";
-    const status = { active: n.team, teammate: `${n.team} (지금 동료)`, retired: `은퇴 (${n.retiredYear})`, manager: `${n.team} 감독` }[n.status];
+    const status = {
+      active: n.team,
+      teammate: `${n.team} (지금 동료)`,
+      retired: `은퇴${n.retiredYear ? ` (${n.retiredYear})` : ""}`,
+      manager: `${n.team} 감독`,
+    }[n.status];
     html += `<div class="nem-card stage${n.stage}">
       <div class="nem-head"><b>${n.name}</b><span class="nem-stage">${NEMESIS_STAGES[n.stage]}</span></div>
       <p class="small">${LEAGUES[n.league].name} · ${status} · ${n.pos}${n.revenge ? " · 🔥 복수 다짐" : ""}</p>

@@ -43,8 +43,10 @@ function kboFaNeeded(player) {
 
 // 1군에 145일 이상 등록된 시즌만 FA 시즌으로 쳐줌 (2군, 상무, 해외는 제외)
 function countKboService(player, report) {
+  if (report.league === "KBO2" && report.minorLine && report.minorLine.up) bankCallupDays(player, report); // 시즌 중 콜업 (roster.js)
   if (report.league !== "KBO") return;
-  if ((report.gameFactor || 1) >= FA_RULES.serviceShare) {
+  const full = report.regDays !== undefined ? report.regDays >= FA_DAYS : (report.gameFactor || 1) >= FA_RULES.serviceShare;
+  if (full) {
     player.kboService = (player.kboService || 0) + 1;
   } else {
     const days = registeredDays(report);

@@ -921,7 +921,7 @@ function maybeClutch(player, report) {
 
   if (report.cupFinal) {
     moment = { kind: "hsFinal", stage: `${report.cupFinal} 결승` };
-  } else if (CHAMPIONSHIP[lg] && PS_ROUNDS[lg] && report.standing && report.standing.seed) {
+  } else if (CHAMPIONSHIP[lg] && PS_ROUNDS[lg] && report.standing && report.standing.seed && !report.noPostseason) {
     const fin = FINAL_SERIES[lg];
     const champion = report.awards.includes(CHAMPIONSHIP[lg]);
     const ps = report.postseason || [];

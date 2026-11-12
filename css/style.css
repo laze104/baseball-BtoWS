@@ -120,6 +120,10 @@ button.secondary {
   background: #3a4d3f;
   color: #f2f2f2;
 }
+#fast-button.on {
+  background: #5a4a14;
+  color: #ffd75e;
+}
 
 .gain {
   color: #6fcf7f;
@@ -1018,6 +1022,47 @@ form label.school-field select {
 }
 
 /* v15 */
+/* 저장 파일 내보내기·불러오기 (backup.js) */
+#backup-box {
+  margin-top: 22px;
+  padding: 12px;
+  border: 1px dashed #4a5a4e;
+  border-radius: 10px;
+}
+#backup-box h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+#backup-box h3 small {
+  font-weight: normal;
+  opacity: 0.7;
+}
+.backup-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.backup-btns button,
+.file-btn {
+  margin-top: 0;
+}
+.file-btn {
+  display: block;
+  padding: 10px;
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
+  background: #e8b931;
+  color: #1a2a1e;
+  border-radius: 8px;
+  cursor: pointer;
+}
+#backup-msg.bad {
+  color: #ff8a80;
+}
+#backup-msg.good {
+  color: #7fd38f;
+}
 #version {
   color: #fff;
   font-size: 11px;
@@ -2708,4 +2753,239 @@ table.records small {
 }
 .mview li.minus b {
   color: #a8321b;
+}
+
+/* ---------- v0.20: 부상·2군·상대 전적 ---------- */
+.inj-status {
+  background: #3a2222;
+  border-left: 3px solid #d4694f;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  margin: 8px 0;
+}
+.table-scroll {
+  overflow-x: auto;
+  margin-bottom: 8px;
+}
+.mu-table {
+  min-width: 460px;
+  font-size: 12px;
+}
+.mu-table td,
+.mu-table th {
+  white-space: nowrap;
+}
+.mu-table .sticky {
+  position: sticky;
+  left: 0;
+  background: #26392b;
+  text-align: left;
+}
+.mu-tag {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 4px;
+}
+.mu-tag.nemesis {
+  background: #d4694f;
+  color: #fff;
+}
+.mu-tag.killer {
+  background: #4f97d1;
+  color: #fff;
+}
+
+/* ---------- v0.20: 오른쪽 피드 (PC) ---------- */
+#side-col {
+  display: none;
+}
+.side-box {
+  background: #26392b;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+.side-box.click {
+  cursor: pointer;
+}
+.side-box.click:hover {
+  outline: 1px solid #e8b931;
+}
+.side-box h4 {
+  margin: 0 0 6px;
+}
+.side-box .phase-steps li {
+  font-size: 11px;
+}
+.side-line {
+  font-size: 13px;
+  margin: 4px 0;
+  color: #d5e2d8;
+}
+.side-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.side-list li {
+  font-size: 13px;
+  padding: 5px 0;
+  border-bottom: 1px solid #3a4d3f;
+  line-height: 1.35;
+}
+.side-list li:last-child {
+  border-bottom: 0;
+}
+.side-list li span {
+  display: block;
+  font-size: 11px;
+  color: #a9b8ad;
+}
+.side-list li.unread {
+  font-weight: bold;
+  color: #e8b931;
+}
+.side-list.fans li em {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+  color: #a9b8ad;
+}
+
+/* ---------- v0.20: 폰 정리 ---------- */
+@media (max-width: 759px) {
+  body {
+    padding: 10px;
+  }
+  section {
+    padding: 12px;
+  }
+  /* 탭 10개를 5칸 2줄로 (옆으로 안 밀어도 다 보이게) */
+  #tabs {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    overflow: visible;
+  }
+  #tabs button {
+    padding: 8px 2px;
+  }
+  #player-header h2 {
+    font-size: 20px;
+  }
+  h1 {
+    font-size: 24px;
+    margin: 8px 0 12px;
+  }
+}
+
+/* ---------- v0.20: 태블릿 ---------- */
+@media (min-width: 760px) {
+  body {
+    max-width: 760px;
+  }
+  #create-screen {
+    max-width: 520px;
+    margin: 0 auto;
+  }
+  #tabs {
+    overflow: visible;
+  }
+}
+
+/* ---------- v0.20: PC 3단 (왼쪽 메뉴 · 가운데 · 오른쪽 피드) ---------- */
+@media (min-width: 1100px) {
+  body {
+    max-width: 1440px;
+    padding: 16px 24px;
+  }
+  h1 {
+    text-align: left;
+    font-size: 22px;
+    margin: 0 0 12px;
+  }
+  #player-screen:not([hidden]) {
+    display: grid;
+    grid-template-columns: 170px minmax(0, 1fr) 320px;
+    grid-template-areas:
+      "nav head head"
+      "nav main side";
+    gap: 12px 20px;
+    align-items: start;
+    background: transparent;
+    padding: 0;
+  }
+  #player-header {
+    grid-area: head;
+    background: #26392b;
+    border-radius: 12px;
+    padding: 4px 16px 10px;
+  }
+  #player-header h2 {
+    margin-top: 10px;
+  }
+  #side-nav {
+    grid-area: nav;
+    position: sticky;
+    top: 16px;
+  }
+  #main-col {
+    grid-area: main;
+    min-width: 0;
+    background: #26392b;
+    border-radius: 12px;
+    padding: 16px;
+  }
+  #side-col {
+    grid-area: side;
+    display: block;
+    position: sticky;
+    top: 16px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+  }
+  #tabs {
+    flex-direction: column;
+    margin: 0;
+    gap: 4px;
+  }
+  #tabs button {
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 15px;
+    background: #26392b;
+  }
+  #subtabs {
+    flex-direction: column;
+    margin: 6px 0 0 14px;
+  }
+  #subtabs button {
+    text-align: left;
+  }
+  #choice-panel {
+    margin-top: 0;
+    margin-bottom: 16px;
+  }
+  /* 훈련 탭: 능력치 카드 | 시즌 진행 나란히 */
+  #tab-train:not([hidden]) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+  #season-panel {
+    margin-top: 0;
+    border-top: 0;
+    padding-top: 0;
+    position: sticky;
+    top: 16px;
+  }
+  #retired-screen {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  .stat-table {
+    font-size: 13px;
+  }
 }

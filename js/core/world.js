@@ -243,9 +243,9 @@ function checkChampion(player, report) {
 // 실제 리그 기준 (리그 최고 수준 선수의 성적)
 // mvp: 보통 MVP 경쟁자 점수, pitcher: 투수상 경쟁자 점수
 const AWARD_RACE = {
-  KBO: { mvp: 7.8, pitcher: 6.6, allstar: 3.3, pitcherAward: "최동원상" },
-  NPB: { mvp: 7.3, pitcher: 6.4, allstar: 3.6, pitcherAward: "사와무라상" },
-  MLB: { mvp: 8.4, pitcher: 7.0, allstar: 4.0, pitcherAward: "사이영상" },
+  KBO: { mvp: 8.4, pitcher: 6.6, allstar: 3.9, pitcherAward: "최동원상" },
+  NPB: { mvp: 7.6, pitcher: 6.4, allstar: 4.0, pitcherAward: "사와무라상" },
+  MLB: { mvp: 8.7, pitcher: 7.0, allstar: 4.4, pitcherAward: "사이영상" },
 };
 
 // 포지션별 골든글러브(베스트나인) 경쟁자 점수: 그 포지션 1등의 보통 성적
@@ -264,7 +264,7 @@ function impactScore(player, report) {
   const p = report.pit;
   let s = report.WAR;
   const titles = report.awards.filter((a) => Object.values(TITLE_NAMES).includes(a));
-  s += titles.length * 0.6;
+  s += titles.length * 0.35;
   if (b && b.G) {
     if (b.HR >= line.hr) s += 0.8;
     if (b.HR >= 40 && b.SB >= 40)
@@ -301,7 +301,9 @@ function batPosition(player) {
 
 // 수상 레이스: 내 점수가 기준(그 상을 받으려면 필요한 점수)을 넘으면 수상
 // 확률이 아니라 성적으로만 정해짐. 결과 탭에서 내 점수와 기준을 같이 보여줌
-function race(player, report, award, mine, need, unit) {
+// spread: 그해 경쟁자 수준이 해마다 다름 (같은 성적이어도 경쟁자가 세면 못 받음)
+function race(player, report, award, mine, need, unit, spread) {
+  if (spread) need += gauss() * spread;
   const won = mine >= need;
   report.races = report.races || [];
   report.races.push({ award, mine: round(mine, unit === "ops" ? 3 : 1), need: round(need, unit === "ops" ? 3 : 1), won, unit });
@@ -323,10 +325,10 @@ function seasonAwards(player, report) {
   const extra = impact - report.WAR; // WAR 말고 타이틀·기록·팀 성적·인기로 얻은 점수
 
   // MVP: WAR + 타이틀 + 굵직한 기록 + 팀 성적
-  race(player, report, `${name} MVP`, impact, rc.mvp - (two ? 0.5 : 0));
+  race(player, report, `${name} MVP`, impact, rc.mvp - (two ? 0.5 : 0), undefined, 1.3);
 
   // 신인왕: 이 리그 첫 시즌
-  if (!player.leagueSeasons[lg]) race(player, report, `${name} 신인왕`, impact, two ? 3.2 : 3.6);
+  if (!player.leagueSeasons[lg]) race(player, report, `${name} 신인왕`, impact, two ? 3.2 : 3.6, undefined, 0.7);
 
   // 투수상 (최동원상·사와무라상은 선발만, 사이영상은 리그별·마무리도 가능)
   if (p) {
@@ -334,7 +336,7 @@ function seasonAwards(player, report) {
     const okRole = lg === "MLB" ? starter || p.SV >= 40 : starter;
     if (okRole) {
       const pScore = p.WAR + report.awards.filter((a) => ["다승왕", "평균자책점왕", "탈삼진왕"].includes(a)).length * 0.7;
-      race(player, report, lg === "MLB" ? `${name} ${rc.pitcherAward}` : rc.pitcherAward, pScore, rc.pitcher - (lg === "MLB" ? 0.4 : 0));
+      race(player, report, lg === "MLB" ? `${name} ${rc.pitcherAward}` : rc.pitcherAward, pScore, rc.pitcher - (lg === "MLB" ? 0.4 : 0), undefined, 0.8);
     }
   }
 
@@ -345,15 +347,15 @@ function seasonAwards(player, report) {
     const label = lg === "KBO" ? "골든글러브" : `${name} 베스트나인`;
     let won = false;
     if (b && pos && b.G >= games * 0.6) {
-      won = race(player, report, `${label} (${pos})`, b.WAR + extra * 0.6, POSITION_RACE[pos] - (pos === "외야수" ? 0.4 : 0));
+      won = race(player, report, `${label} (${pos})`, b.WAR + extra * 0.6, POSITION_RACE[pos] - (pos === "외야수" ? 0.4 : 0), undefined, 0.7);
     }
     if (!won && p && isPitchingQualified(p, games)) {
-      race(player, report, `${label} (투수)`, p.WAR + extra * 0.6, POSITION_RACE["투수"]);
+      race(player, report, `${label} (투수)`, p.WAR + extra * 0.6, POSITION_RACE["투수"], undefined, 0.7);
     }
   }
   if (lg === "MLB" && b && pos && b.PA >= games * 3.1) {
     // 실버슬러거: 포지션별 OPS 1등
-    race(player, report, `${name} 실버슬러거 (${pos})`, b.OPS, LEAGUE_ENV.MLB.ops * SLUGGER_RACE[pos], "ops");
+    race(player, report, `${name} 실버슬러거 (${pos})`, b.OPS, LEAGUE_ENV.MLB.ops * SLUGGER_RACE[pos], "ops", 0.03);
   }
   // KBO 수비상 (2023년부터): 포지션별 수비 1등
   if (lg === "KBO" && b && pos && pos !== "지명타자" && b.G >= games * 0.6) {
@@ -394,39 +396,101 @@ function seasonAwards(player, report) {
 }
 
 // 올스타: 성적 + 인기 (팬 투표)
+// 4구간 시즌은 전반기 끝(halfBreak)에 allStarHalf 로 미리 뽑고 발표, 시즌 끝엔 그 결과로 상만 줌
 function allStar(player, report) {
-  const lg = report.league;
-  const rec = report.bat || report.pit;
-  if (!rec || !rec.G) return;
-  const fame = player.fame || 0;
-  if (lg === "KBO2") {
-    race(player, report, "퓨처스 올스타", report.WAR, 1.5);
+  const pick = report.allStarPick;
+  if (pick) {
+    report.fanVote = pick.fanVote;
+    report.races = report.races || [];
+    report.races.push({ award: pick.award, mine: pick.score, need: pick.need, won: pick.won, unit: undefined });
+    if (!pick.won) return;
+    addAward(player, report, pick.award);
+    if (pick.award !== "올스타") return;
+    report.allStar = { fanPick: pick.fanPick, mvp: pick.mvp };
+    if (pick.mvp) addAward(player, report, "미스터 올스타");
     return;
   }
-  const rc = AWARD_RACE[lg];
-  if (!rc) return;
-  // 부상으로 덜 뛴 해는 전반기 성적으로 봐줌
-  // 팬 투표: 팬덤이 큰 팀 + 팀 성적이 좋으면 몰표 (백업 선수는 투표 대상이 잘 안 됨)
-  const backup = report.bat && report.bat.role && report.bat.role.startsWith("백업");
-  const st = report.standing;
-  const teamPct = st ? st.w / (st.w + st.l) : 0.5;
-  const f = teamFandom(report.team) - 3;
-  // 팬덤 작은 팀도 감독 추천으로 뽑힐 길이 있어서 불리함은 조금만
-  const fanVote = (f * (f > 0 ? 0.6 : 0.25) + clamp((teamPct - 0.5) * 10, -0.8, 1.3) + fanVoteBonus(player, report.team)) * (backup ? 0.3 : 1); // 내 팀 팬심 (fandom.js)
-  report.fanVote = round(fanVote, 1);
-  let score = report.WAR * (report.gameFactor < 1 ? 1.3 : 1) + fame / 50 + fanVote;
-  // 이정후처럼 압도적이면 팬덤이 작은 팀이어도 감독 추천·선수단 투표로 무조건 뽑힘
-  const dominant = report.WAR >= rc.allstar + 1.5 || report.awards.some((a) => Object.values(TITLE_NAMES).includes(a));
-  if (dominant) score = Math.max(score, rc.allstar + 0.1);
-  if (!race(player, report, "올스타", score, rc.allstar)) return;
-  const fanPick = fame >= 40 || fanVote >= 1.5;
-  report.allStar = { fanPick, mvp: false };
-  // 미스터 올스타: 올스타 중에서도 압도적인 성적 + 큰 무대 강심장(클러치·멘탈)
-  const nerve = player.type === "pitcher" ? player.stats.mental : player.stats.clutch;
-  if (score >= rc.allstar + 4 && nerve >= LEAGUES[lg].level + 15) {
+  const r = allStarScore(player, report, report.WAR, report.standing, report.gameFactor);
+  if (!r) return;
+  if (!race(player, report, r.award, r.score, r.need)) return;
+  if (r.award !== "올스타") return;
+  report.allStar = { fanPick: r.fanPick, mvp: false };
+  if (r.mvpReady) {
     addAward(player, report, "미스터 올스타");
     report.allStar.mvp = true;
   }
+}
+
+// 올스타 점수: war 는 한 시즌 기준 (전반기면 x2 해서 넘김), st 는 {w, l}
+function allStarScore(player, report, war, st, gameFactor) {
+  const lg = report.league;
+  const rec = report.bat || report.pit;
+  if (!rec || !rec.G) return null;
+  const fame = player.fame || 0;
+  if (lg === "KBO2") return { award: "퓨처스 올스타", score: round(war, 1), need: 1.5 };
+  const rc = AWARD_RACE[lg];
+  if (!rc) return null;
+  // 팬 투표: 팬덤이 큰 팀 + 팀 성적이 좋으면 몰표 (백업 선수는 투표 대상이 잘 안 됨)
+  const backup = report.bat && report.bat.role && report.bat.role.startsWith("백업");
+  const teamPct = st && st.w + st.l ? st.w / (st.w + st.l) : 0.5;
+  const f = teamFandom(report.team) - 3;
+  // 팬덤 작은 팀도 감독 추천으로 뽑힐 길이 있어서 불리함은 조금만
+  // 실제 올스타는 팀당 4~5명 꼴 → 주전 3명 중 1명 정도. 팬 투표가 성적을 뒤집는 건 인기 구단 + 팬심 높을 때만
+  const fanVote = round((f * (f > 0 ? 0.35 : 0.2) + clamp((teamPct - 0.5) * 6, -0.6, 0.8) + fanVoteBonus(player, report.team) * 0.6) * (backup ? 0.3 : 1), 1); // 내 팀 팬심 (fandom.js)
+  report.fanVote = fanVote;
+  // 부상으로 덜 뛴 해는 조금 봐줌
+  let score = war * (gameFactor < 1 ? 1.3 : 1) + clamp(fame / 80, -0.5, 1) + fanVote;
+  // 압도적이면 팬덤이 작은 팀이어도 감독 추천·선수단 투표로 무조건 뽑힘
+  const dominant = war >= rc.allstar + 1.5 || report.awards.some((a) => Object.values(TITLE_NAMES).includes(a));
+  if (dominant) score = Math.max(score, rc.allstar + 0.1);
+  const nerve = player.type === "pitcher" ? player.stats.mental : player.stats.clutch;
+  return {
+    award: "올스타",
+    score: round(score, 1),
+    need: rc.allstar,
+    fanVote,
+    fanPick: (fame >= 50 || fanVote >= 1.3) && war >= 2,
+    // 미스터 올스타: 압도적인 성적 + 큰 무대 강심장(클러치·멘탈)
+    mvpReady: score >= rc.allstar + 4 && nerve >= LEAGUES[lg].level + 15,
+  };
+}
+
+// 전반기 끝 (flow.js halfBreak): 전반기 성적으로 올스타 발표 + 올스타전
+function allStarHalf(player, ctx) {
+  const r = ctx.report;
+  if (r.allStarPick) return;
+  const h = ctx.half1;
+  const st = h ? { w: h.w, l: h.l } : null;
+  const x = allStarScore(player, r, r.WAR * 2, st, ctx.gameFactor); // 전반기 WAR x2 = 시즌 페이스
+  if (!x) return;
+  const won = x.score >= x.need;
+  const hurt = ctx.inj && ctx.inj.left > 0;
+  // 올스타전 MVP: 조건 되는 선수 중에서도 그날 컨디션 (뽑혀도 부상이면 불참)
+  const mvp = won && x.award === "올스타" && !hurt && (x.mvpReady ? Math.random() < 0.3 : Math.random() < 0.015); // 실제론 50명 중 1명
+  r.allStarPick = { award: x.award, score: x.score, need: x.need, won, fanPick: !!x.fanPick, fanVote: x.fanVote, mvp };
+  const lg = LEAGUES[r.league].name;
+  r.toasts = r.toasts || [];
+  if (!won) {
+    if (x.score >= x.need - 0.8) r.news.push(`${lg} 올스타 명단 발표… ${player.name}, 아쉽게 탈락 (막차 경쟁에서 밀려)`);
+    return;
+  }
+  if (x.award === "퓨처스 올스타") {
+    r.news.push(`퓨처스 올스타 명단 발표… ${player.name} 이름 올려`);
+    r.toasts.push({ icon: "⭐", text: "퓨처스 올스타 선정" });
+    return;
+  }
+  const how = x.fanPick ? "팬 투표 1위로" : x.fanVote >= 0.5 ? "팬 투표로" : "감독 추천으로";
+  r.news.push(`${lg} 올스타 명단 발표… ${player.name}, ${how} 별들의 잔치 간다`);
+  if (hurt) r.news.push(`${player.name}, 부상으로 올스타전 불참… 대체 선수 발표`);
+  else if (mvp) r.news.push(`'미스터 올스타' ${player.name}! 올스타전 MVP… 상금에 자동차까지`);
+  r.toasts.push({ icon: "⭐", text: `올스타 선정 (${how})` });
+  r.bigMoments = r.bigMoments || [];
+  r.bigMoments.push({
+    tone: "gold",
+    kicker: `${r.year} ${lg} 올스타전`,
+    title: mvp ? "⭐ 미스터 올스타!" : "⭐ 올스타 선정",
+    lines: [`전반기 WAR ${r.WAR} · ${how} 선정`, hurt ? "부상으로 올스타전엔 못 나감" : mvp ? "올스타전 MVP까지 차지했어요" : "올스타전 무대를 밟았어요"],
+  });
 }
 
 // =============================================
@@ -574,7 +638,7 @@ function milbTick(player, report) {
   player.milbYears = (player.milbYears || 0) + 1;
   const ovr = getOvrs(player).best;
   const mlbLevel = LEAGUES.MLB.level;
-  if (ovr >= mlbLevel - 4 || (ovr >= mlbLevel - 7 && report.WAR >= 4 && Math.random() < 0.5)) {
+  if (ovr >= mlbLevel - 4 || (ovr >= mlbLevel - 7 && report.WAR >= 4 && Math.random() < 0.5) || callupStuck(player, report)) {
     player.league = "MLB";
     player.team = player.mlbOrg;
     player.contract = makeContract("MLB", player.team, 1, minSalary("MLB", player), 0);

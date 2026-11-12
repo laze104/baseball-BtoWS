@@ -46,9 +46,15 @@ function josaOf(word, j) {
 function seasonGrade(report, side) {
   const rec = report[side];
   if (TOP_LEAGUES.includes(report.league)) {
-    if (rec.WAR >= 4) return "great";
-    if (rec.WAR >= 1.5) return "good";
-    return "bad";
+    // WAR 는 경기 수에 따라 달라서 비율 성적도 같이 봄 (부상으로 덜 뛰어도 OPS .860 이면 잘한 시즌)
+    const env = LEAGUE_ENV[report.league];
+    let rate = null;
+    if (side === "bat" && rec.PA >= 150) rate = rec.OPS >= env.ops + 0.17 ? "great" : rec.OPS >= env.ops + 0.02 ? "good" : "bad";
+    if (side === "pit" && rec.outs >= 90) rate = rec.ERA <= env.era - 1.3 ? "great" : rec.ERA <= env.era - 0.1 ? "good" : "bad";
+    const war = rec.WAR >= 4 ? "great" : rec.WAR >= 1.5 ? "good" : "bad";
+    const rank = { bad: 0, good: 1, great: 2 };
+    if (!rate) return war;
+    return rank[rate] >= rank[war] ? rate : war;
   }
   if (side === "bat") return rec.OPS >= 0.95 ? "great" : rec.OPS >= 0.76 ? "good" : "bad";
   return rec.ERA <= 2.5 ? "great" : rec.ERA <= 4.3 ? "good" : "bad";

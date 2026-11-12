@@ -57,12 +57,13 @@ function rollInjury(player, report, chance) {
 // 1군 등록일수 (시즌 186일 기준, 145일 넘어야 FA 1시즌 인정)
 const KBO_SEASON_DAYS = 186;
 function registeredDays(report) {
+  if (report.regDays !== undefined) return report.regDays; // 4구간 시즌은 날짜로 셈 (injury.js)
   return Math.round(KBO_SEASON_DAYS * (report.gameFactor || 1));
 }
 
 // 부상 때문에 등록일수 못 채우면 크게 알려줌
 function serviceShortNotice(player, report, days) {
-  if (!report.injury) return false;
+  if (!report.injury || (report.downDays || 0) > (report.injDays || 0)) return false; // 2군 때문이면 기사만
   report.specials.push({ key: "serviceInjury", days });
   report.bigMoments = report.bigMoments || [];
   const left = seasonsToFa(player);
@@ -152,7 +153,8 @@ function seriesGames(bo) {
 
 function postseasonStats(player, report, mod) {
   const ps = report.postseason;
-  if (!ps || !ps.length) return;
+  if (!ps || !ps.length || report.noPostseason) return; // 부상·2군이면 가을야구 못 뜀
+  mod += report.psMod || 0; // 진통제 맞고 출전 (injury.js)
   const bo = PS_BO[report.league] || {};
   const games = ps.reduce((s, g) => s + seriesGames(bo[g.round] || 5), 0);
   const level = LEAGUES[report.league].level + 3;

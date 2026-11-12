@@ -35,12 +35,22 @@ js/
     clubhouse.js    라커룸 그룹 + 감독이 보는 점수 (managerView)
     analysis.js     분석실 (코스별 히트맵·구종 약점)
     gala.js         연말 시상식 수상 소감
+    injury.js       시즌 중 부상 (부위·IL·재활 단계·재발·가을야구 진통제)
+    roster.js       1군·2군 오르내리기 (강등 메일, 퓨처스 기록, 콜업)
+    slump.js        슬럼프 면담 (폼 수정·영상·휴식·멘탈 코치·버티기)
+    streak.js       연속 기록 + 루틴·징크스
+    matchup.js      상대 전적 + 천적·킬러
+    extension.js    비FA 다년계약·연장 계약
+    compensation.js FA 보상선수 (보호선수 20인·25인)
+    amateur.js      고교·대학 이벤트 (투구수 혹사·최저학력제·전학·하이라이트 영상·동기 라이벌)
     phases.js       프로 시즌 4구간 (캠프·전반기·후반기·가을야구)
   flow.js           시스템들을 시즌 흐름에 꽂는 곳
   ui/               화면
-    effects.js      토스트, 숫자 카운트업
+    effects.js      토스트, 숫자 카운트업, 빠른 진행 (speed)
     talk.js         감독 면담 1대1 대화 팝업 (말투·기분·관계·기억)
     charts.js       선 그래프 (홈런왕 레이스, 시즌 페이스, 커리어)
+    layout.js       PC 화면 오른쪽 피드 (시즌·메일·뉴스·팬 반응)
+    backup.js       저장 파일 내보내기·불러오기 (시작 화면, .json)
     main.js         화면 그리기, 버튼 연결, 저장/불러오기
 ```
 
@@ -53,6 +63,8 @@ js/
   - 예: `ACHIEVEMENTS.push(...)` 는 legacy.js 뒤
   - 예: boxscore.js 는 story.js 의 `CLUTCH_OPTIONS` 를 고쳐서 story.js 뒤
 - 새 파일 넣을 땐 index.html 에서 쓰는 것들 뒤에 넣으면 됨
+- `const`/`let` 은 그 줄 읽기 전엔 못 씀 → 저장된 선수 불러와서 화면 그리는 줄은 main.js 맨 끝에 둠
+  - 위에 두면 아래쪽 `PS_NAMES`, `bigQueue` 못 읽어서 새로고침할 때 화면이 멈춤 (v0.20 버그)
 
 ## 시즌 한 번 도는 흐름
 
@@ -82,6 +94,34 @@ js/
 ```
 - 아마추어·사회복무는 예전처럼 runSeason 한 번에 끝남
 - 시즌 중 기사는 report.news 에 쌓였다가 시즌 끝 총평 뒤에 붙음
+
+## 구간마다 끼는 것 (v0.20, flow.js)
+
+```
+beforeHalf  구간 시작: 부상(injury) + 2군 날짜(roster) + 콜업 + 슬럼프 휴식
+            → ctx.partFactor = 이번 구간에 원래 리그에서 뛴 비율 (playPart 가 경기 수에 곱함)
+afterHalf   구간 경기 직후: 연속 기록(streak), 슬럼프 탈출 기사
+halfBreak   구간 사이 메일: (전반기 끝) 올스타 발표 → 재활 단계 → 2군 강등 / 콜업 → 슬럼프 → 연장 계약, 천적 예고, 징크스
+            후반기 끝엔 부상 남아 있으면 가을야구 진통제 투혼 메일
+```
+- 올스타는 전반기 성적으로 뽑아 report.allStarPick 에 저장, 시즌 끝 allStar() 는 그걸로 상만 줌
+- 슬럼프 메일은 실제로 못할 때만 (리그 평균 OPS·평균자책, 작년 성적이랑 비교)
+- 2군·콜업 기록은 report.minorLine 에만 (통산 1군 기록이랑 안 섞임), history 엔 minor 로 남음
+- 1군 등록일수: 186일 - 부상 - 말소 + 부상자 명단 30일 인정 → report.regDays (rules.js 가 FA 시즌 셀 때 씀)
+
+## 밸런스·메일 규칙 (v22)
+
+- 타이틀 기준(AWARD_LINE)은 실제 최근 리그 1위 수준. 1위 기준은 해마다 흔들림 (estimateRank)
+- 큰 상(MVP·투수상·골든글러브 등)은 race(..., spread) 로 그해 경쟁자 수준이 바뀜
+- 능력치가 리그 수준보다 24 넘게 높으면 효과가 다시 완만해짐 (sim.js diff)
+- 곁가지 메일(life·locker·sns 등 MAIL_PRIORITY)은 한 번에 2통까지, 넘치면 덜 중요한 것부터 빠짐 (career.js pushChoice)
+- 고교·대학 이벤트 결과: 드래프트 점수 보정 player.draftAdj (-5~+5), 다음 해 출전 정지 player.amateurBan
+
+## 화면 크기 (css 맨 아래 @media)
+
+- 폰 (759px 이하): 한 줄 세로, 탭 5칸 2줄
+- 태블릿 (760px~): 가운데 760px
+- PC (1100px~): 왼쪽 메뉴 · 가운데 내용 · 오른쪽 피드 3단 (index.html 의 #side-nav · #main-col · #side-col)
 
 ## 새 기능 넣는 순서 (예: 새 시스템 `xxx.js`)
 

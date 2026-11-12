@@ -17,10 +17,13 @@ function fmtInnings(outs) {
 
 // 능력치가 상대 수준(level)보다 얼마나 높은지 (-1 ~ +1 정도)
 // 리그 수준을 한참 넘으면(8 이상) 차이가 더 크게 벌어짐: 급이 다른 선수는 압도적으로
+// 리그 수준보다 8 넘게 높으면 효과가 커지지만(스타는 확 튐), 24 넘어가면 다시 완만해짐
+// → 4할·50홈런 같은 비현실적 시즌이 너무 자주 안 나오게
 function diff(stat, level) {
   const gap = stat - level;
-  const extra = gap > 8 ? (gap - 8) * 0.7 : 0;
-  return (gap + extra) / 100;
+  if (gap <= 8) return gap / 100;
+  if (gap <= 24) return (8 + (gap - 8) * 1.5) / 100;
+  return (32 + (gap - 24) * 0.8) / 100;
 }
 
 // ---------------------------------------------

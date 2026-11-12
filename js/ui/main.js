@@ -230,6 +230,7 @@ function showPlayer(player) {
   showMail(player); // 메일 탭 (mail.js)
   showMoney(player);
   showAchievements($("tab-ach"));
+  showSideFeed(player); // PC 오른쪽 피드 (layout.js)
 
   retireButton.hidden = player.age < 33 || !!player.cur; // 시즌 중엔 은퇴 버튼 숨김
   createScreen.hidden = true;
@@ -393,7 +394,12 @@ function showChoice(player) {
         nick: player.nickname || "",
       });
       savePlayer(player);
-      showPlayer(player);
+      // 화면 그리다 에러 나도 중계·결과 팝업은 떠야 함
+      try {
+        showPlayer(player);
+      } catch (e) {
+        console.error("화면 그리기 실패", e);
+      }
       showBigMoments(moments);
     });
     choicePanel.appendChild(button);
@@ -454,6 +460,9 @@ function showSeasonResult(report) {
     html += `<p class="small">전반기 ${report.half1.rank}위 (${report.half1.w}승 ${report.half1.l}패) → 최종 ${report.standing ? report.standing.rank + "위" : "-"}</p>`;
   if (report.bat) html += `<h4>타격 <small>${report.bat.role}</small></h4>` + batRecordHtml(report.bat);
   if (report.pit) html += `<h4>투구 <small>${report.pit.role}</small></h4>` + pitRecordHtml(report.pit);
+  html += minorLineHtml(report); // 2군·콜업 기록 (roster.js)
+  if (report.regDays !== undefined)
+    html += `<p class="small">1군 등록 ${report.regDays}일 (FA 1시즌 기준 145일)${report.injDays ? ` · 부상 ${report.injDays}일` : ""}${report.downDays ? ` · 말소 ${report.downDays}일` : ""}</p>`;
   html += seasonGoalsHtml(report); // 캠프 때 세운 목표 (phases.js)
   if (report.monthlyMvp && report.monthlyMvp.length)
     html += `<p class="chips awards">${report.monthlyMvp.map((m) => `<span>🗓️ ${m}월 ${report.league === "MLB" ? "이달의 선수" : "월간 MVP"}</span>`).join("")}</p>`;
@@ -1091,6 +1100,11 @@ retireButton.addEventListener("click", () => {
   showRetired(currentPlayer);
 });
 
+// 빠른 진행 켜기·끄기 (effects.js)
+$("fast-button").textContent = fastLabel();
+$("fast-button").classList.toggle("on", fastMode);
+$("fast-button").addEventListener("click", toggleFast);
+
 $("reset-button").addEventListener("click", () => {
   if (!confirm("정말 처음부터 다시 할까요? 지금 선수는 사라져요.")) return;
   localStorage.removeItem(SAVE_KEY);
@@ -1116,10 +1130,6 @@ $("deck-box").addEventListener("change", (event) => {
   $("deck-count").textContent = pickedDeck().length;
 });
 renderDeckPicker();
-
-// 시작할 때 저장된 선수가 있으면 바로 보여줌
-const saved = loadPlayer();
-if (saved) showPlayer(saved);
 
 // ---------------------------------------------
 // 7. 순위표, 쇼핑, 큰 화면 알림
@@ -1256,7 +1266,8 @@ function showBigMoments(list) {
 }
 
 // 텍스트 중계(pbp)가 있으면 한 줄씩 나오고 결과는 마지막에 공개됨
-const PBP_STEP = 0.9; // 줄 사이 간격 (초)
+const PBP_STEP = 0.9; // 줄 사이 간격 (초), 빠른 진행이면 0.18
+const pbpStep = () => (fastMode ? 0.18 : PBP_STEP);
 let pbpTimer = null;
 function nextBigMoment() {
   const modal = $("big-modal");
@@ -1275,14 +1286,14 @@ function nextBigMoment() {
   // 중계 중엔 테두리 색으로 결과가 새지 않게 중립색
   modal.dataset.tone = m.tone || "gold";
   modal.className = (pbp ? "pbp-mode playing" : m.tone || "gold") + (m.cls ? ` ${m.cls}` : ""); // 세레머니 크기 (ceremony.js)
-  const late = pbp ? `animation-delay:${(pbp.length * PBP_STEP).toFixed(1)}s` : "";
+  const late = pbp ? `animation-delay:${(pbp.length * pbpStep()).toFixed(1)}s` : "";
   modal.querySelector(".big-kicker").textContent = m.kicker || "";
   const title = modal.querySelector(".big-title");
   title.textContent = m.title;
   title.className = "big-title" + (pbp ? " late" : "");
   title.style.cssText = late;
   let body = "";
-  if (pbp) body += `<div class="pbp">${pbp.map((l, i) => `<p style="animation-delay:${(i * PBP_STEP).toFixed(1)}s">${l}</p>`).join("")}</div>`;
+  if (pbp) body += `<div class="pbp">${pbp.map((l, i) => `<p style="animation-delay:${(i * pbpStep()).toFixed(2)}s">${l}</p>`).join("")}</div>`;
   let after = "";
   if (m.html) body += m.html; // 카운트업·꽃가루 (ceremony.js)
   if (m.box) after += boxScoreHtml(m.box);
@@ -1297,7 +1308,7 @@ function nextBigMoment() {
         modal.className = `${modal.dataset.tone} pbp-mode`;
         $("big-close").textContent = "확인";
       },
-      pbp.length * PBP_STEP * 1000 + 400,
+      pbp.length * pbpStep() * 1000 + 400,
     );
   }
   modal.hidden = false;
@@ -1410,3 +1421,8 @@ $("ranking").addEventListener("click", (event) => {
   box.innerHTML = `<div class="rank-detail"><h4>${r.name}${r.nickname ? ` '${r.nickname}'` : ""} <small>${r.school || ""} · 통산 WAR ${r.WAR}${r.hof ? " · 🏛️ 명예의 전당" : ""}</small></h4>${recordHtml(past, true)}</div>`;
   box.scrollIntoView({ behavior: "smooth", block: "start" });
 });
+
+// 시작할 때 저장된 선수가 있으면 바로 보여줌
+// 파일 맨 끝에 둬야 함 (위에서 const 로 만든 PS_NAMES 등이 다 준비된 뒤에 실행)
+const saved = loadPlayer();
+if (saved) showPlayer(saved);

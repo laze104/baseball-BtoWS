@@ -293,7 +293,7 @@ function judgeExpectation(player, ctx) {
   const report = ctx.report;
   if (!ex || report.team !== ex.team) return;
   const met = expectMet(ex, report);
-  player.expectResult = { team: ex.team, year: report.year, id: ex.id, met };
+  player.expectResult = { team: ex.team, year: report.year, id: ex.id, label: ex.label, met };
   if (met) {
     if (ex.id !== "rebuild") {
       report.news.push(`${ex.team}, 시즌 목표 '${ex.label}' 달성… 프런트 "감독·선수단 모두 수고했다"`);
@@ -344,14 +344,17 @@ function startCamp(player, focusKeys, programId, goalIdx) {
 
 function playFirstHalf(player) {
   const ctx = player.cur;
+  beforeHalf(player, ctx, 0); // 부상 (flow.js)
   playPart(player, ctx, 0, 0.5);
   const part = ctx.parts[ctx.parts.length - 1];
+  afterHalf(player, ctx, 0, part); // 연속 기록
   ctx.half1 = halfStanding(player, ctx.report); // world.js
   monthsFromPart(player, ctx, part, 0);
   checkMonthlyMvp(player, ctx, 0);
   deadlineEvent(player, ctx);
   checkRolePromise(player, ctx); // 계약 때 약속한 역할 (contract.js)
   maybeLockerSide(player, ctx); // 라커룸 그룹 (clubhouse.js)
+  halfBreak(player, ctx, 0); // 재활·2군·슬럼프·연장 계약·징크스 (flow.js)
   player.phase = "half1";
   return ctx;
 }
@@ -359,13 +362,16 @@ function playFirstHalf(player) {
 function playSecondHalf(player) {
   const ctx = player.cur;
   ctx.partMod = (ctx.partMod || 0) + clamp(Math.round((player.morale || 0) / 5), -1, 1);
+  beforeHalf(player, ctx, 1); // 부상·2군·콜업 (flow.js)
   playPart(player, ctx, 0.5, 1);
   const part = ctx.parts[ctx.parts.length - 1];
+  afterHalf(player, ctx, 1, part);
   monthsFromPart(player, ctx, part, 1);
   checkMonthlyMvp(player, ctx, 1);
   ctx.report.monthsData = ctx.monthsData;
   teamStanding(player, ctx.report); // 최종 순위 미리 (가을야구 가는지 버튼에 보여줌)
   ctx.standingDone = true;
+  halfBreak(player, ctx, 1); // 가을야구 앞두고 부상
   player.phase = "half2";
   return ctx;
 }
@@ -374,7 +380,10 @@ function finishPhased(player) {
   const ctx = player.cur;
   player.cur = null;
   player.phase = null;
+  seasonDays(player, ctx); // 부상·2군 날짜 → 1군 등록일수 (injury.js)
   const report = finishSeason(player, ctx);
+  const last = player.history[player.history.length - 1];
+  if (last && report.minorLine) last.minor = report.minorLine; // 2군·콜업 기록 (roster.js)
   report.camp = ctx.camp;
   report.goals = (ctx.goals || []).map((g) => ({ ...g, done: goalDone(g, report), now: goalNow(g, report) }));
   report.expect = ctx.expect;
@@ -589,8 +598,10 @@ function phaseProgressHtml(player) {
     const h = ctx.half1;
     html += `<h4>전반기 <small>${h.group ? h.group + " " : ""}${h.rank}위 / ${h.teams}팀 · ${h.w}승 ${h.l}패</small></h4>`;
   }
+  html += injuryStatusHtml(ctx); // injury.js
   if (r.bat && r.bat.G) html += `<h4>내 기록 <small>${r.bat.role}</small></h4>` + batRecordHtml(r.bat);
   if (r.pit && r.pit.G) html += `<h4>내 기록 <small>${r.pit.role}</small></h4>` + pitRecordHtml(r.pit);
+  html += minorLineHtml(r); // 2군·콜업 기록 (roster.js)
   if (player.phase === "half2" && r.standing) {
     const s = r.standing;
     html += `<p class="standing">최종 <b>${s.rank}위</b> / ${s.teams}팀 · ${s.w}승 ${s.l}패 ${s.seed ? `<span class="ps">${s.psLabel} 진출</span>` : `<span class="ps out">${s.psLabel || "포스트시즌"} 탈락</span>`}</p>`;

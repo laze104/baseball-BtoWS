@@ -149,7 +149,11 @@ function talkTopics(player) {
   }
   const ex = player.expectResult;
   if (ex && ex.team === player.team && !ex.met && ex.id !== "rebuild")
-    list.push({ id: "expectFail", w: 2, say: `작년 '${ex.label}' 목표 못 한 거 알지. 올해는 나도 자리가 걸려 있다.` });
+    list.push({
+      id: "expectFail",
+      w: 2,
+      say: `작년 '${ex.label || (EXPECTS[ex.id] || {}).label || "시즌"}' 목표 못 한 거 알지. 올해는 나도 자리가 걸려 있다.`,
+    });
   const h = [...player.history].reverse().find((x) => !isAmateur(x.league));
   if (h && h.WAR >= 5) list.push({ id: "bigYear", w: 1, say: "작년 같은 시즌이면 뭐, 내가 할 말이 별로 없지." });
   if (h && h.WAR < 0.5 && h.team === player.team) list.push({ id: "badYear", w: 1, say: "작년 기록 보고 왔다. 쉽지 않았지." });
@@ -471,7 +475,7 @@ function talkTopic(topics, i) {
 // 말풍선 하나 (감독은 "..." 타이핑 뒤에 나옴)
 function talkSay(who, text, next, delay) {
   const log = $("talk-modal").querySelector(".talk-log");
-  const wait = delay !== undefined ? delay : who === "them" ? 650 : 250;
+  const wait = speed(delay !== undefined ? delay : who === "them" ? 650 : 250);
   let typing = null;
   if (who === "them" && wait) {
     typing = document.createElement("p");
@@ -487,7 +491,7 @@ function talkSay(who, text, next, delay) {
     p.textContent = text;
     log.appendChild(p);
     log.scrollTop = log.scrollHeight;
-    if (next) setTimeout(next, 250);
+    if (next) setTimeout(next, speed(250));
   }, wait);
 }
 

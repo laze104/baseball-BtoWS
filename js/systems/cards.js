@@ -31,7 +31,7 @@ const SUPPORT_CARDS = [
       },
       {
         title: "기본기로 돌아가라",
-        when: (p, r) => !isAmateur(r.league) && (r.events.includes("슬럼프") || r.WAR < 0),
+        when: (p, r) => !isAmateur(r.league) && ((r.events.includes("슬럼프") && r.WAR < 2) || r.WAR < 0),
         run: (p) => {
           p.nextMod = (p.nextMod || 0) + 2;
           return `"기본기로 돌아가라." 고교 감독님 전화 한 통에 다음 시즌 컨디션 +2`;
@@ -104,7 +104,7 @@ const SUPPORT_CARDS = [
     chain: [
       {
         title: "밥 먹자",
-        when: (p, r) => !isAmateur(r.league) && (r.events.includes("슬럼프") || r.WAR < 0.5) && (p.proSeasons || 0) >= 2,
+        when: (p, r) => !isAmateur(r.league) && ((r.events.includes("슬럼프") && r.WAR < 2) || r.WAR < 0.5) && (p.proSeasons || 0) >= 2,
         run: (p) => {
           p.nextMod = (p.nextMod || 0) + 2;
           return `선배가 "밥 먹자"며 불러냈어요. 털어놓고 나니 한결 가벼워짐 (다음 시즌 컨디션 +2)`;
