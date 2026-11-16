@@ -287,7 +287,7 @@ function expectMet(ex, report) {
   return s.rank < s.teams;
 }
 
-// 시즌 끝: 기대치 결과 → 감독 거취·팬심 (world.js rotateManagers 가 expectResult 봄)
+// 시즌 끝: 기대치 결과 → 감독 거취·팬심 (manager.js rotateManagers 가 expectResult 봄)
 function judgeExpectation(player, ctx) {
   const ex = ctx.expect;
   const report = ctx.report;
@@ -348,7 +348,7 @@ function playFirstHalf(player) {
   playPart(player, ctx, 0, 0.5);
   const part = ctx.parts[ctx.parts.length - 1];
   afterHalf(player, ctx, 0, part); // 연속 기록
-  ctx.half1 = halfStanding(player, ctx.report); // world.js
+  ctx.half1 = halfStanding(player, ctx.report); // standings.js
   monthsFromPart(player, ctx, part, 0);
   checkMonthlyMvp(player, ctx, 0);
   deadlineEvent(player, ctx);
@@ -572,7 +572,7 @@ function resolveDeadline(player, choice, option) {
     .map((t) => t.team);
   const to = choice.seller && top.length ? pick(top) : null;
   const from = player.team;
-  const res = doTrade(player, report, "mid", to); // extra.js
+  const res = doTrade(player, report, "mid", to); // trade.js
   player.lastDeadline = "go";
   report.team = res.to;
   report.tradedFrom = from;

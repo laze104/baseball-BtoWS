@@ -70,3 +70,8 @@ function saveJSON(key, value) {
     return false;
   }
 }
+
+// 정규분포 비슷한 랜덤 (-3 ~ 3, 대부분 -1 ~ 1)
+function gauss() {
+  return (Math.random() + Math.random() + Math.random() + Math.random() - 2) * 1.7;
+}

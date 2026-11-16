@@ -63,7 +63,7 @@ function signExtension(player, o) {
   addMoney(player, payAgent(player, o.bonus, rate));
   player.extSigned = (player.extSigned || 0) + 1;
   changeTeamFans(player, player.team, 4);
-  recordFaDeal(player, o); // 커리어 총액 (extra.js)
+  recordFaDeal(player, o); // 커리어 총액 (fa.js)
 }
 
 function resolveExtension(player, choice, option) {

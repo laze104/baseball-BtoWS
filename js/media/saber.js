@@ -94,7 +94,7 @@ function saberTotals(list) {
 const pct = (v) => (v === undefined || v === null || Number.isNaN(v) ? "-" : `${(v * 100).toFixed(1)}%`);
 const fipTxt = (v) => (v === undefined || v === null || Number.isNaN(v) ? "-" : Number(v).toFixed(2));
 
-// 기록표 칸 (main.js batRow / pitRow 뒤에 붙음)
+// 기록표 칸 (record.js batRow / pitRow 뒤에 붙음)
 function batSaberCells(b) {
   const k = b.Kp !== undefined ? b.Kp : b.PA ? b.K / b.PA : null;
   const bb = b.BBp !== undefined ? b.BBp : b.PA ? b.BB / b.PA : null;

@@ -312,7 +312,7 @@ function resolvePress(player, choice, option) {
   if (choice.idx + 1 < choice.qs.length) {
     pushChoiceFirst(player, pressChoice(player, choice.kind, choice.qs, choice.vals, choice.idx + 1, acc));
   } else {
-    player.lastPress = acc; // 끝나면 큰 화면 요약 (main.js choiceBigMoments)
+    player.lastPress = acc; // 끝나면 큰 화면 요약 (moments.js choiceBigMoments)
   }
   return [headline];
 }

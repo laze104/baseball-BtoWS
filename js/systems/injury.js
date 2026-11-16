@@ -4,7 +4,7 @@
 // 2. 리그별 명단: KBO 부상자 명단(등록일수 30일까지 인정), MLB IL, NPB 1군 말소
 // 3. 쉬는 기간이 다음 구간으로 넘어가면 재활 단계 고르기 (조기 복귀 / 단계별 / 완벽 회복)
 // 4. 조기 복귀하면 재발 위험 ↑ / 시즌 끝까지 못 돌아오면 가을야구 진통제 투혼 고르기
-// 아마추어·독립리그는 예전처럼 시즌 시작에 한 번 (extra.js rollInjury)
+// 아마추어·독립리그는 시즌 시작에 한 번만 굴림 (맨 아래 rollInjury)
 // =============================================
 
 const HALF_DAYS = 93; // 시즌 186일의 반
@@ -250,3 +250,23 @@ ACHIEVEMENTS.push({
   desc: "부상을 안고 가을야구 출전",
   check: (p) => p.history.some((h) => (h.events || []).includes("진통제 투혼")),
 });
+
+// ---------------------------------------------
+// 시즌 시작 때 한 번 굴리는 부상 (아마추어·독립리그, career.js startSeason 에서 부름)
+// ---------------------------------------------
+
+// 부상: 유리몸은 확률도 높고 길게 빠짐. 가벼운 부상은 1군 등록일수에 큰 문제 없음
+function rollInjury(player, report, chance) {
+  const glass = player.hidden && player.hidden.glass;
+  if (glass) chance = chance * 2.4 + 0.05;
+  const forced = forcedInjury(player); // 재활 재발·숨긴 통증 (body.js)
+  if (!forced && Math.random() >= chance) return 1;
+  const severe = forced ? Math.random() < 0.6 : Math.random() < (glass ? 0.75 : 0.5);
+  const factor = severe ? 0.4 + Math.random() * 0.35 : 0.84 + Math.random() * 0.1;
+  const part = forced || injuryPart(player); // 다쳤던 부위가 또 다치기 쉬움
+  logInjury(player, part, severe);
+  report.events.push(severe ? "장기 부상" : "부상");
+  report.specials.push({ key: forced ? "reinjury" : severe && glass ? "glassHurt" : "injury", part });
+  report.injury = { severe, glass, part, again: (player.injuryLog[part] || 0) >= 2 };
+  return factor;
+}

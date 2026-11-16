@@ -137,7 +137,7 @@ function resolveSns(player, choice, option) {
   return [line, `(전체 여론 ${sign(fame)} · ${player.team} 팬심 ${sign(fans)})`];
 }
 
-// 대응별 커뮤 반응 (main.js reactionPool)
+// 대응별 커뮤 반응 (choice.js reactionPool)
 function snsPool(player) {
   return FAN[`sns_${player.lastSnsTone}`] || FAN.good;
 }

@@ -31,7 +31,7 @@ function clauseOf(player, id) {
 }
 
 // ---------------------------------------------
-// 1. FA 제안에 조항·역할 붙이기 (extra.js buildFaChoice 에서 부름)
+// 1. FA 제안에 조항·역할 붙이기 (fa.js buildFaChoice 에서 부름)
 // ---------------------------------------------
 function attachClauses(player, o) {
   if (o.clauses) return o;
@@ -83,7 +83,7 @@ function applyContractTerms(player, o, oldTeam, stayed) {
   c.clauses = (o.clauses || []).map((x) => ({ ...x }));
   c.length = o.years;
   c.role = o.role || "compete";
-  player.promiseTeam = o.team; // world.js resolveCampWish 가 팀 바뀌면 약속 지움
+  player.promiseTeam = o.team; // manager.js resolveCampWish 가 팀 바뀌면 약속 지움
   if (c.role === "starter") player.starterPromise = true;
   if (c.role === "closer") player.role = "closer";
   player.promise = c.role !== "compete" ? { team: o.team, role: c.role, since: gameYear(player) + 1, complained: 0 } : null;
@@ -435,7 +435,7 @@ Object.assign(FAN, {
   promiseBad: ["구단이 약속 안 지킨 거면 문제지", "실력으로 보여주면 됨", "감독이랑 틀어진 거 아님?", "분위기 안 좋다…"],
 });
 
-// 연봉조정 판정은 큰 화면으로 (main.js choiceBigMoments 앞에서 꺼냄)
+// 연봉조정 판정은 큰 화면으로 (moments.js choiceBigMoments 앞에서 꺼냄)
 function takeArbMoment(player) {
   const m = player.arbMoment;
   player.arbMoment = null;

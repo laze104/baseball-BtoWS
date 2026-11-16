@@ -45,7 +45,7 @@ function teamFanLabel(v) {
 
 // ---------- 다른 시스템에 들어가는 값 ----------
 
-// 트레이드 확률 배수 (extra.js maybeMidTrade·maybeAfterTrade)
+// 트레이드 확률 배수 (trade.js maybeMidTrade·maybeAfterTrade)
 function fanTradeMul(player) {
   const f = teamFanOf(player, player.team);
   if (f >= 40) return 0.5; // 팬들이 들고 일어나서 못 보냄
@@ -54,12 +54,12 @@ function fanTradeMul(player) {
   return 1;
 }
 
-// 감독 면담 점수 (world.js managerScore)
+// 감독 면담 점수 (manager.js managerScore)
 function fanManagerBonus(player) {
   return clamp(teamFanOf(player, player.team) / 40, -1, 1);
 }
 
-// FA 협상 성공 확률 (extra.js negoChance) : 원소속팀 팬심이 높으면 구단도 더 맞춰 줌
+// FA 협상 성공 확률 (fa.js negoChance) : 원소속팀 팬심이 높으면 구단도 더 맞춰 줌
 function fanNegoBonus(player, team) {
   return team === player.team ? clamp(teamFanOf(player, team) / 300, -0.1, 0.2) : 0;
 }
@@ -69,7 +69,7 @@ function fanStayFactor(player) {
   return 1 + clamp(teamFanOf(player, player.team) / 400, -0.1, 0.25);
 }
 
-// 올스타 팬 투표 (world.js allStar)
+// 올스타 팬 투표 (awards.js allStar)
 function fanVoteBonus(player, team) {
   return clamp(teamFanOf(player, team) / 50, -0.5, 1.5);
 }

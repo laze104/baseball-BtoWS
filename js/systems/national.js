@@ -53,7 +53,7 @@ function playNationalEvent(player, report) {
   const ev = NATIONAL_EVENTS.find((e) => e.id === player.nationalPlan);
   const ovr = getOvrs(player).best;
   const level = ev.hsOnly ? 45 : LEAGUES.KBO.level;
-  const nat = nationalStats(player, ev, report); // 대회 기록 (extra.js)
+  const nat = nationalStats(player, ev, report); // 대회 기록 (아래 '국가대표 기록')
   const result = nationalResult(player, ev, ovr - level, nat.bonus);
   const odds = NATIONAL_ODDS[ev.id];
   const podium = odds.podium.includes(result);
@@ -167,3 +167,75 @@ function nationalResult(player, ev, gap, bonus) {
   }
   return odds.table[0][0];
 }
+
+// ---------------------------------------------
+// 국가대표 기록
+// ---------------------------------------------
+
+const NATIONAL_GAMES = { u18: 9, asian: 5, premier: 8, wbc: 7, olympic: 6 };
+
+function nationalStats(player, ev, report) {
+  const games = NATIONAL_GAMES[ev.id] || 6;
+  const level = ev.hsOnly ? 40 : LEAGUES.KBO.level + 5; // 국제대회는 상대가 셈
+  const ovrs = getOvrs(player);
+  const out = { year: report.year, name: ev.name, bat: null, pit: null };
+  if (ovrs.bat !== null) {
+    out.bat = simBattingSeason(player.stats, level, games, 3.9, 0, player.position.split(" 겸 ").pop(), NEUTRAL_ENV);
+  }
+  if (ovrs.pit !== null) {
+    const starter = player.position.startsWith("선발");
+    out.pit = simPitchingSeason(player.stats, level, starter ? "starter" : "setup", starter ? 2 : Math.ceil(games * 0.5), 0, NEUTRAL_ENV);
+  }
+  // 대회 성적이 메달 색에도 조금 보탬
+  let bonus = 0;
+  if (out.bat && out.bat.PA) bonus += (out.bat.OPS - 0.75) * 8;
+  if (out.pit && out.pit.outs) bonus += (3.5 - out.pit.ERA) * 0.8;
+  return { rec: out, bonus: clamp(bonus, -3, 4) };
+}
+
+function nationalRecordHtml(player) {
+  const list = player.nationalHistory || [];
+  if (!list.length) return "";
+  let html = "<h4>🇰🇷 국가대표 기록</h4>";
+  const ev = (n) => n.replace(" 청소년 야구월드컵", "");
+  const nat = { history: list.map((n) => ({ league: "KBO", bat: n.bat, pit: n.pit, WAR: 0 })) };
+  if (list.some((n) => n.bat)) {
+    html += `<div class="scroll"><table class="stat-table">${BAT_HEAD(false)}`;
+    for (const n of list) if (n.bat) html += batRow(n.year, `${ev(n.name)} ${medalIcon(n.result)}`, n.bat, "");
+    html += batRow("국가대표 통산", "", totalsAsBat(careerTotals(nat)), "total");
+    html += "</table></div>";
+  }
+  if (list.some((n) => n.pit)) {
+    html += `<div class="scroll"><table class="stat-table">${PIT_HEAD}`;
+    for (const n of list) if (n.pit) html += pitRow(n.year, `${ev(n.name)} ${medalIcon(n.result)}`, n.pit, "");
+    html += pitRow("국가대표 통산", "", totalsAsPit(careerTotals(nat)), "total");
+    html += "</table></div>";
+  }
+  const medals = ["금메달", "은메달", "동메달", "우승", "준우승", "4강"].map((m) => [m, list.filter((n) => n.result === m).length]).filter(([, c]) => c);
+  html += `<p class="small">대회 ${list.length}번 출전${medals.length ? ` · ${medals.map(([m, c]) => `${m} ${c}`).join(" · ")}` : ""} (국대 경기는 WAR 없음)</p>`;
+  return html;
+}
+
+function medalIcon(result) {
+  return { 금메달: "🥇", 은메달: "🥈", 동메달: "🥉", 우승: "🏆", 준우승: "🥈", "4강": "🏅" }[result] || "";
+}
+
+// ---------------------------------------------
+// 국가대표 은퇴
+// ---------------------------------------------
+
+function canRetireNational(player) {
+  return !player.nationalRetired && player.age >= 30 && (player.awards["국가대표"] || 0) > 0;
+}
+
+function retireNational(player) {
+  player.nationalRetired = true;
+  player.nationalPlan = null;
+  const caps = player.awards["국가대표"] || 0;
+  changeFame(player, 3);
+  return `${player.name}, 태극마크 반납… "${caps}번의 대표팀, 영광이었습니다. 이제 후배들에게"`;
+}
+
+Object.assign(FAN, {
+  nationalRetire: ["태극마크 수고 많으셨습니다", "대표팀 레전드였다 진짜", "이제 소속팀에서 오래 봐요", "국대 경기에서 울컥했던 기억 난다"],
+});

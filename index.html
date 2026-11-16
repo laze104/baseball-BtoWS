@@ -187,16 +187,33 @@
     <div id="toasts"></div>
 
     <!-- 스크립트는 순서대로 읽힘 (모듈 안 씀, 함수는 전부 전역)
-       core: 규칙·데이터 / media: 기사·댓글·중계 / systems: 콘텐츠 / flow: 시즌에 연결 / ui: 화면 -->
+       data: 고정 데이터 / core: 시즌을 돌리는 규칙 / media: 기사·댓글·중계 / systems: 콘텐츠 (한 파일 = 한 기능)
+       flow: 콘텐츠를 시즌에 연결 / ui: 화면. main.js 가 맨 마지막 -->
     <script src="js/core/util.js"></script>
-    <script src="js/core/data.js"></script>
+
+    <script src="js/data/basics.js"></script>
+    <script src="js/data/schools.js"></script>
+    <script src="js/data/leagues.js"></script>
+    <script src="js/data/managers.js"></script>
+    <script src="js/data/economy.js"></script>
+    <script src="js/data/events.js"></script>
+    <script src="js/data/text.js"></script>
+
     <script src="js/core/sim.js"></script>
-    <script src="js/core/legacy.js"></script>
+    <script src="js/core/player.js"></script>
+    <script src="js/core/growth.js"></script>
+    <script src="js/core/traits.js"></script>
     <script src="js/core/money.js"></script>
     <script src="js/core/rules.js"></script>
+    <script src="js/core/draft.js"></script>
+    <script src="js/core/choices.js"></script>
     <script src="js/core/career.js"></script>
-    <script src="js/core/world.js"></script>
-    <script src="js/core/extra.js"></script>
+    <script src="js/core/standings.js"></script>
+    <script src="js/core/postseason.js"></script>
+    <script src="js/core/splits.js"></script>
+    <script src="js/core/awards.js"></script>
+    <script src="js/core/achievements.js"></script>
+    <script src="js/core/hof.js"></script>
 
     <script src="js/media/feed.js"></script>
     <script src="js/media/news.js"></script>
@@ -207,8 +224,22 @@
     <script src="js/media/mail.js"></script>
 
     <script src="js/systems/national.js"></script>
-    <script src="js/systems/story.js"></script>
+    <script src="js/systems/military.js"></script>
+    <script src="js/systems/rival.js"></script>
+    <script src="js/systems/nickname.js"></script>
+    <script src="js/systems/life.js"></script>
+    <script src="js/systems/franchise.js"></script>
+    <script src="js/systems/position.js"></script>
+    <script src="js/systems/cups.js"></script>
+    <script src="js/systems/clutch.js"></script>
     <script src="js/systems/boxscore.js"></script>
+    <script src="js/systems/shop.js"></script>
+    <script src="js/systems/minors.js"></script>
+    <script src="js/systems/manager.js"></script>
+    <script src="js/systems/historic.js"></script>
+    <script src="js/systems/trade.js"></script>
+    <script src="js/systems/fa.js"></script>
+    <script src="js/systems/late-career.js"></script>
     <script src="js/systems/nemesis.js"></script>
     <script src="js/systems/agent.js"></script>
     <script src="js/systems/dilemma.js"></script>
@@ -243,6 +274,19 @@
     <script src="js/ui/charts.js"></script>
     <script src="js/ui/layout.js"></script>
     <script src="js/ui/backup.js"></script>
+    <script src="js/ui/state.js"></script>
+    <script src="js/ui/create.js"></script>
+    <script src="js/ui/player-view.js"></script>
+    <script src="js/ui/choice.js"></script>
+    <script src="js/ui/season-result.js"></script>
+    <script src="js/ui/board.js"></script>
+    <script src="js/ui/record.js"></script>
+    <script src="js/ui/phase-ui.js"></script>
+    <script src="js/ui/money-tab.js"></script>
+    <script src="js/ui/hall.js"></script>
+    <script src="js/ui/standings-tab.js"></script>
+    <script src="js/ui/moments.js"></script>
+    <script src="js/ui/meeting.js"></script>
     <script src="js/ui/main.js"></script>
   </body>
 </html>

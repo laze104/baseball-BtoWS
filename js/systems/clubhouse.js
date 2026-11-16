@@ -208,7 +208,7 @@ function groupsHtml(player) {
 }
 
 // ---------------------------------------------
-// 감독이 보는 것 (world.js managerScore 가 이걸 합침)
+// 감독이 보는 것 (manager.js managerScore 가 이걸 합침)
 // 면담 결과 화면에 "감독이 본 것"으로 보여줌
 // ---------------------------------------------
 function managerView(player, wish) {

@@ -1,9 +1,9 @@
 // =============================================
 // rules.js : 실제 규정을 따르는 부분
-// 1. KBO FA (1군 등록 시즌, 재자격, A/B/C 등급)
+// 1. KBO FA (1군 등록 시즌·등록일수, 재자격, A/B/C 등급)
 // 2. 포스팅 (KBO → MLB, NPB)
 // 3. MLB 서비스타임 (연봉조정, 논텐더, FA)
-// 4. 대학 진학과 드래프트
+// 드래프트·대학 진학은 draft.js
 // =============================================
 
 const FA_RULES = {
@@ -18,25 +18,10 @@ const FA_RULES = {
 
 const RULE_CHOICES = ["posting", "postingOffer", "draftSign", "collegePick"];
 
-Object.assign(NEWS.special, {
-  scouts: "MLB·NPB 스카우트들, {name} 보러 줄줄이 방한",
-  serviceShort: "{name}, 1군 등록일수 부족… FA 시계 1년 늦어진다",
-  serviceMerge: "{name}, 모자랐던 1군 등록일수 합산해 1시즌 인정… FA 시계 다시 돈다",
-  renew: "{name}, FA 재자격까지 {left}시즌… {team|과} 1년 재계약",
-  arbitration: "{name}, 연봉조정 거쳐 1년 {salary} 계약 (서비스타임 {years}년)",
-  preArb: "{name}, 서비스타임 {years}년… 구단과 1년 {salary} 재계약",
-  nontender: "{team}, {name} 논텐더 결정… 자유계약 신분으로",
-});
-
-Object.assign(FAN, {
-  posting: ["가서 꼭 성공해라", "그동안 고마웠다 ㅠㅠ", "솔직히 거기선 안 통할 듯", "해외에서도 응원한다"],
-  postingFail: ["아쉽지만 내년에 다시 가자", "오히려 좋아 우리 팀에 남는다", "현실의 벽이 높네"],
-  college: ["대학 가서 몸 만들고 오자", "4년 뒤에 1라운드 가자", "대학야구도 볼 맛 나겠네"],
-});
-
 // ---------------------------------------------
 // 1. KBO FA
 // ---------------------------------------------
+
 function kboFaNeeded(player) {
   return player.collegeGrad ? FA_RULES.collegeGrad : FA_RULES.hsGrad;
 }
@@ -61,7 +46,7 @@ function countKboService(player, report) {
       report.events.push("등록일수 합산 1시즌 인정");
       report.specials.push({ key: "serviceMerge" });
     }
-    // 부상 때문이면 크게 알려줌 (extra.js), 아니면 기사만
+    // 부상 때문이면 크게 알려줌 (아래 serviceShortNotice), 아니면 기사만
     if (!merged && !serviceShortNotice(player, report, days)) report.specials.push({ key: "serviceShort" });
   }
 }
@@ -111,13 +96,40 @@ function renewAfterFa(player, report) {
   report.specials.push({ key: "renew", left: seasonsToFa(player) });
 }
 
+// 1군 등록일수 (시즌 186일 기준, 145일 넘어야 FA 1시즌 인정)
+const KBO_SEASON_DAYS = 186;
+function registeredDays(report) {
+  if (report.regDays !== undefined) return report.regDays; // 4구간 시즌은 날짜로 셈 (injury.js)
+  return Math.round(KBO_SEASON_DAYS * (report.gameFactor || 1));
+}
+
+// 부상 때문에 등록일수 못 채우면 크게 알려줌
+function serviceShortNotice(player, report, days) {
+  if (!report.injury || (report.downDays || 0) > (report.injDays || 0)) return false; // 2군 때문이면 기사만
+  report.specials.push({ key: "serviceInjury", days });
+  report.bigMoments = report.bigMoments || [];
+  const left = seasonsToFa(player);
+  report.bigMoments.push({
+    tone: "bad",
+    kicker: "1군 등록일수 부족",
+    title: "⏳ FA가 늦어질 수 있어요",
+    lines: [
+      `부상으로 1군 등록 ${days}일 (기준 145일)`,
+      `이번 시즌은 FA 시즌으로 안 쳐줌 · FA까지 1군 ${left}시즌 남음`,
+      `모자란 일수는 쌓아 뒀다가 145일 차면 1시즌으로 인정 (지금 ${player.kboDaysBank || 0}일)`,
+    ],
+  });
+  return true;
+}
+
 // ---------------------------------------------
 // 2. 포스팅
+// ---------------------------------------------
+
 // - 1군 등록 7시즌 + 구단 동의
 // - MLB 30개 구단과 30일 동안 협상, 못 하면 복귀 (다음 비시즌에 다시 가능)
 // - 포스팅 비용: 보장액 2,500만 달러까지 20%, 다음 2,500만 달러 17.5%, 그 위 15%
 // - NPB는 KBO와 공식 포스팅 협정이 없어서 구단 동의를 받아 이적함
-// ---------------------------------------------
 const DOLLAR_25M = 3500000; // 2,500만 달러 ≒ 350억 원 (만원 단위)
 
 function postingFee(total) {
@@ -213,9 +225,17 @@ function resolvePostingOffer(player, choice, option) {
   ];
 }
 
+function chanceLabel(p) {
+  if (p >= 0.6) return "높음";
+  if (p >= 0.35) return "보통";
+  if (p >= 0.15) return "낮음";
+  return "매우 낮음";
+}
+
 // ---------------------------------------------
 // 3. MLB 서비스타임: 6년 전에 계약이 끝나면 구단이 권리를 가짐
 // ---------------------------------------------
+
 function mlbContractEnd(player, report) {
   const years = player.mlbService || 0;
   if (years >= FA_RULES.mlbFA) {
@@ -247,149 +267,8 @@ function mlbContractEnd(player, report) {
 }
 
 // ---------------------------------------------
-// 4. 대학 진학과 드래프트
+// 선택지 처리
 // ---------------------------------------------
-// 드래프트 지명 기준 점수 (능력치 + 학교 + 졸업반 성적 + 전국대회 성적)
-const DRAFT_LINE = { HS: 56, COLLEGE: 57, INDIE: 60, ABL: 60 };
-// 이 능력치(OVR)면 점수와 상관없이 지명됨 (어지간하면 뽑히는 선)
-const DRAFT_SURE = { HS: 52, COLLEGE: 54 };
-
-function isDrafted(player, score) {
-  return score >= DRAFT_LINE[player.league] || getOvrs(player).best >= DRAFT_SURE[player.league];
-}
-
-function draftRound(score, base) {
-  return clamp(1 + Math.floor((base - score) / 1.2), 1, 11);
-}
-
-function draftBonus(player, round) {
-  return Math.round(MONEY.draftBonus[round - 1] * priceIndex(player) * (0.8 + Math.random() * 0.4));
-}
-
-// 고교 졸업 때: 지명되면 입단할지 대학에 갈지 고름
-function hsDraft(player, report) {
-  const score = draftScore(player, report);
-  if (isDrafted(player, score)) {
-    const round = draftRound(score, 70);
-    const team = pick(TEAMS.KBO);
-    const bonus = draftBonus(player, round);
-    report.specials.push({ key: round === 1 ? "draftTop" : "draft", round, team, bonus: fmtMoney(bonus) });
-    pushChoice(player, {
-      key: "draftSign",
-      round,
-      team,
-      bonus,
-      text: `${team}${josaOf(team, "이")} ${round}라운드에 지명했어요! 바로 프로에 갈까요, 지명을 거부하고 대학에 갈까요?`,
-      options: [
-        { id: "sign", label: `${team} 입단`, detail: `계약금 ${fmtMoney(bonus)} · FA까지 1군 ${FA_RULES.hsGrad}시즌` },
-        { id: "college", label: "지명 거부하고 대학 진학", detail: `4년 뒤 대졸 드래프트 재도전 · 대졸은 FA까지 1군 ${FA_RULES.collegeGrad}시즌` },
-      ],
-    });
-  } else {
-    report.specials.push({ key: "undrafted" });
-    pushChoice(player, undraftedChoice(true));
-  }
-  maybeMlbDirect(player, report); // 아주 드물게 미국 구단 직행 제안 (world.js)
-}
-
-function undraftedChoice(canCollege) {
-  const options = [];
-  if (canCollege) options.push({ id: "COLLEGE", label: "대학에 진학한다", detail: "4년간 대학야구 · 졸업 후 대졸 드래프트" });
-  options.push(
-    { id: "INDIE", label: "국내 독립리그에서 재도전" },
-    { id: "ABL", label: "호주리그로 건너가 경험 쌓기" },
-    { id: "retire", label: "야구를 그만둔다" },
-  );
-  return { key: "undrafted", text: "드래프트에서 이름이 불리지 않았어요. 어디서 다시 도전할까요?", options };
-}
-
-// 대학 4학년이 끝나면 대졸 드래프트
-function collegeDraft(player, report) {
-  player.collegeGrad = true;
-  const score = draftScore(player, report);
-  if (isDrafted(player, score)) {
-    const round = draftRound(score, 68);
-    const team = pick(TEAMS.KBO);
-    const bonus = draftBonus(player, round);
-    report.specials.push({ key: round === 1 ? "draftTop" : "draft", round, team, bonus: fmtMoney(bonus) });
-    signDraft(player, round, team, bonus);
-    if (player.league === "KBO") report.specials.push({ key: "openingRoster", team });
-  } else {
-    report.specials.push({ key: "undrafted" });
-    pushChoice(player, undraftedChoice(false));
-  }
-}
-
-// 대학 진학: 고교 성적(드래프트 점수)에 맞는 대학들이 체육특기자로 데려가려 함
-function collegeOffers(player) {
-  const last = player.lastReport && player.lastReport.league === "HS" ? player.lastReport : { WAR: 0 };
-  const score = draftScore(player, last);
-  const tiers = score >= 54 ? [3, 3, 2] : score >= 49 ? [3, 2, 2] : score >= 44 ? [2, 2, 1] : score >= 38 ? [2, 1, 1] : [1, 1];
-  const picked = [];
-  for (const t of tiers) {
-    const pool = COLLEGES.filter((c) => c.tier === t && !picked.includes(c));
-    if (pool.length) picked.push(pick(pool));
-  }
-  return { score, list: picked };
-}
-
-const TIER_LABEL = { 3: "야구 명문", 2: "중위권", 1: "신생·하위권 (출전 기회 많음)" };
-
-function enterCollege(player) {
-  const { score, list } = collegeOffers(player);
-  pushChoiceFirst(player, {
-    key: "collegePick",
-    text: `🎓 대학 야구부들이 체육특기자 입학을 제안했어요. (고교 성적 점수 ${score}) 어디로 갈까요?`,
-    options: list.map((c) => ({
-      id: c.name,
-      label: `${c.name} 입학`,
-      detail: `${TIER_LABEL[c.tier]} · ${LEAGUE_GROUPS.COLLEGE.find((g) => g.teams.includes(c.name)).name}${c.tier === 3 ? " · 주전 경쟁 치열하지만 팀이 강해요" : c.tier === 1 ? " · 1학년부터 주전 가능" : ""}`,
-    })),
-  });
-}
-
-function joinCollege(player, name) {
-  const c = COLLEGES.find((x) => x.name === name) || COLLEGES[0];
-  player.league = "COLLEGE";
-  player.team = c.name;
-  player.college = c.name;
-  player.collegeTier = c.tier;
-  player.contract = null;
-  return [`${player.name}, ${c.name} 체육특기자 입학… "4년 뒤 1라운드로 돌아오겠다"`];
-}
-
-function signDraft(player, round, team, bonus) {
-  // 류현진처럼 이미 1군 실력이면 바로 개막 엔트리
-  const ready = getOvrs(player).best >= LEAGUES.KBO.level - 4;
-  player.league = ready ? "KBO" : "KBO2";
-  player.team = team;
-  player.draftRound = round;
-  player.contract = makeContract(player.league, team, 1, minSalary(player.league, player), 0);
-  addMoney(player, bonus);
-  if (ready) player.openingRoster = true;
-  if (player.type === "twoway") {
-    pushChoice(player, {
-      key: "twoway",
-      text: `${team} 코칭스태프가 묻습니다. "프로에서도 이도류를 계속할 건가?"`,
-      options: [
-        { id: "keep", label: "이도류 유지 (힘들지만 대박 가능)" },
-        { id: "batter", label: "타자에 전념" },
-        { id: "pitcher", label: "투수에 전념" },
-      ],
-    });
-  }
-}
-
-function resolveDraftSign(player, choice, option) {
-  if (option.id === "college") {
-    enterCollege(player);
-    return [`${player.name}, ${choice.team} 지명 거부… 대학 진학 결심 "더 성장해서 오겠다"`];
-  }
-  signDraft(player, choice.round, choice.team, choice.bonus);
-  const news = [`${player.name}, ${choice.team} 입단 계약… 계약금 ${fmtMoney(choice.bonus)}`];
-  if (player.league === "KBO") news.push(fillText(NEWS.special.openingRoster, player, { team: choice.team }));
-  return news;
-}
 
 function resolveRulesChoice(player, choice, option) {
   if (choice.key === "posting") return resolvePosting(player, choice, option);
@@ -399,47 +278,27 @@ function resolveRulesChoice(player, choice, option) {
   return [];
 }
 
-// 예전 저장 데이터: 1군 시즌 수를 기록에서 다시 셈
-function initRules(player) {
-  if (player.kboService === undefined) {
-    player.kboService = player.history.filter((h) => h.league === "KBO").length;
-    if (player.contract && player.contract.isFA && player.league === "KBO") {
-      player.faCount = 1;
-      player.lastFaService = player.kboService;
-    }
-  }
-  if (player.mlbService === undefined) player.mlbService = player.history.filter((h) => h.league === "MLB").length;
-}
+// ---------------------------------------------
+// 기사·댓글 문구
+// ---------------------------------------------
 
-// 스카우트 평가 (훈련 탭에 보여줌): 지금 실력과 지난 시즌 성적으로 계산한 드래프트 점수
-function draftOutlook(player) {
-  if (!isAmateur(player.league)) return null;
-  const last = player.lastReport && isAmateur(player.lastReport.league) ? player.lastReport : { WAR: 0 };
-  const score = draftScore(player, last);
-  const line = DRAFT_LINE[player.league];
-  const round = isDrafted(player, score) ? draftRound(Math.max(score, line), player.league === "HS" ? 70 : 68) : null;
-  return { score, line, round, sure: DRAFT_SURE[player.league], mlb: player.league === "HS" && getOvrs(player).best >= 60 && score >= 72 };
-}
+Object.assign(NEWS.special, {
+  scouts: "MLB·NPB 스카우트들, {name} 보러 줄줄이 방한",
+  serviceShort: "{name}, 1군 등록일수 부족… FA 시계 1년 늦어진다",
+  serviceMerge: "{name}, 모자랐던 1군 등록일수 합산해 1시즌 인정… FA 시계 다시 돈다",
+  renew: "{name}, FA 재자격까지 {left}시즌… {team|과} 1년 재계약",
+  arbitration: "{name}, 연봉조정 거쳐 1년 {salary} 계약 (서비스타임 {years}년)",
+  preArb: "{name}, 서비스타임 {years}년… 구단과 1년 {salary} 재계약",
+  nontender: "{team}, {name} 논텐더 결정… 자유계약 신분으로",
+});
 
-// 독립리그·호주리그에서 프로로: 점수가 높으면 드래프트, 조금 모자라면 육성선수 계약
-function indieToPro(player, report) {
-  const score = draftScore(player, report);
-  const line = DRAFT_LINE[player.league] || 60;
-  const draftAge = player.age <= (player.overseasReturn ? 27 : 25);
-  if (draftAge && score >= line + 4) {
-    const round = draftRound(score, 72);
-    const team = pick(TEAMS.KBO);
-    const bonus = draftBonus(player, round);
-    report.specials.push({ key: "draft", round, team, bonus: fmtMoney(bonus) });
-    signDraft(player, round, team, bonus);
-    if (player.league === "KBO") report.specials.push({ key: "openingRoster", team });
-  } else if (score >= line) {
-    // 육성선수: 계약금 없이 2군에서 시작 (정식 선수 등록은 실력으로)
-    const team = pick(TEAMS.KBO);
-    player.league = "KBO2";
-    player.team = team;
-    player.trainee = true;
-    player.contract = makeContract("KBO2", team, 1, minSalary("KBO2", player), 0);
-    report.specials.push({ key: "trainee", team });
-  }
-}
+Object.assign(FAN, {
+  posting: ["가서 꼭 성공해라", "그동안 고마웠다 ㅠㅠ", "솔직히 거기선 안 통할 듯", "해외에서도 응원한다"],
+  postingFail: ["아쉽지만 내년에 다시 가자", "오히려 좋아 우리 팀에 남는다", "현실의 벽이 높네"],
+  college: ["대학 가서 몸 만들고 오자", "4년 뒤에 1라운드 가자", "대학야구도 볼 맛 나겠네"],
+});
+
+Object.assign(NEWS.special, {
+  postingFail: "{name}, {league} 포스팅 무응찰… {team} 잔류",
+  postingWin: "{name}, 포스팅 성공! {team|과} {years}년 총액 {total} 계약",
+});

@@ -19,7 +19,7 @@ function retireYearOf(r) {
 }
 
 // ---------------------------------------------
-// 1. 옛 선수 감독 후보 (world.js managerCandidates 끝에 붙음)
+// 1. 옛 선수 감독 후보 (manager.js managerCandidates 끝에 붙음)
 // ---------------------------------------------
 function pastPlayerManagers(player, year, ok) {
   const list = [];

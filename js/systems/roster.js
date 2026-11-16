@@ -232,7 +232,7 @@ function upHalf(player, ctx) {
   return days; // 원래 리그에선 이만큼 빠짐
 }
 
-// 시즌 끝: 콜업 가서 버텼으면 다음 시즌은 위에서 (career.js moveCareer, world.js milbTick)
+// 시즌 끝: 콜업 가서 버텼으면 다음 시즌은 위에서 (career.js moveCareer, minors.js milbTick)
 function callupStuck(player, report) {
   const m = report.minorLine;
   if (!m || !m.up) return false;

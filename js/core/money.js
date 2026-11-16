@@ -1,6 +1,7 @@
 // =============================================
-// money.js : 연봉, 계약, FA 제안, 재산과 쇼핑
+// money.js : 연봉, 계약, FA 제안, 돈 들어오기
 // 금액은 모두 "만원" 단위임. (10000 = 1억)
+// 쇼핑·전담 스태프는 systems/shop.js
 // =============================================
 
 // 선수 나이로 몇 년도인지 (16세 = 2026년)
@@ -116,6 +117,7 @@ function negotiateSalary(player) {
 // ---------------------------------------------
 // FA 제안 만들기: 팀마다 기간과 금액이 다름
 // ---------------------------------------------
+
 // 계약 기간: 나이가 기본, 최근 성적이 좋으면 더 길게 줌
 function offerYears(player) {
   const age = player.age;
@@ -241,7 +243,7 @@ function overseasBuzz(player) {
   return { reasons, strong: reasons.length >= 2 || last.WAR >= 6, npb: last.league === "NPB" };
 }
 
-// FA 선택지 만들기: 팀 사정 반영 + 협상 테이블 (extra.js)
+// FA 선택지 만들기: 팀 사정 반영 + 협상 테이블 (fa.js)
 function faChoice(player, reason) {
   const ask = agentPitch(player, reason); // FA 대박 예감이면 에이전시가 먼저 찾아옴 (agent.js)
   if (ask) return ask;
@@ -273,8 +275,9 @@ function signContract(player, offer) {
 }
 
 // ---------------------------------------------
-// 재산
+// 돈 들어오기
 // ---------------------------------------------
+
 // 세금과 생활비를 빼고 35%는 나감
 function addMoney(player, amount) {
   player.money = (player.money || 0) + Math.round(amount * 0.65);
@@ -284,25 +287,6 @@ function addMoney(player, amount) {
 function payday(player, report) {
   const salary = (player.contract ? player.contract.salary : minSalary(player.league, player)) + payIncentive(player, report); // 인센티브 (contract.js)
   addMoney(player, payAgent(player, salary, player.contract ? player.contract.agentRate : 0)); // 에이전트 계약이면 수수료 뗌
-  payServices(player, report); // 전담 스태프 연 계약 (world.js)
+  payServices(player, report); // 전담 스태프 연 계약 (shop.js)
   return salary;
-}
-
-function itemPrice(player, item) {
-  return Math.round(item.price * priceIndex(player));
-}
-
-function hasItem(player, id) {
-  if (player.services && player.services[id]) return true; // 계약 중인 전담 스태프
-  return (player.owned || []).includes(id);
-}
-
-function buyItem(player, id) {
-  const item = SHOP_ITEMS.find((i) => i.id === id);
-  const price = itemPrice(player, item);
-  if (item.service || hasItem(player, id) || player.money < price) return false;
-  player.money -= price;
-  player.owned.push(id);
-  if (item.fame) changeFame(player, item.fame);
-  return true;
 }

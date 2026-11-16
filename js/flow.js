@@ -1,7 +1,7 @@
 // =============================================
 // flow.js : 각 시스템을 시즌 흐름에 연결하는 곳
 // career.js runSeason 끝에서 afterSeason, resolveChoice 에서 resolveSideChoice,
-// world.js teamStanding 에서 standingBonus, main.js reactionPool 에서 sidePool 부름
+// standings.js teamStanding 에서 standingBonus, choice.js reactionPool 에서 sidePool 부름
 // 새 시스템 만들면 여기 한 줄 추가하면 됨
 // =============================================
 
@@ -38,7 +38,7 @@ function afterHalf(player, ctx, half, part) {
 
 // 구간 사이 메일: 부상이 먼저, 그다음 2군·슬럼프·연장 계약, 징크스
 function halfBreak(player, ctx, half) {
-  if (half === 0) allStarHalf(player, ctx); // 전반기 성적으로 올스타 발표 (world.js)
+  if (half === 0) allStarHalf(player, ctx); // 전반기 성적으로 올스타 발표 (awards.js)
   const hurt = injuryBreak(player, ctx, half); // injury.js
   if (half === 0 && !hurt) {
     if (!demotionCheck(player, ctx) && !callupCheck(player, ctx)) {
@@ -195,7 +195,7 @@ function resolveSideChoice(player, choice, option) {
   return [];
 }
 
-// 팬 반응 (main.js reactionPool 앞에서)
+// 팬 반응 (choice.js reactionPool 앞에서)
 function sidePool(key, option, player) {
   const id = option.id;
   if (key === "sns") return snsPool(player); // 논란 대응별 (sns.js)
@@ -324,3 +324,39 @@ ACHIEVEMENTS.push(
   { id: "homeTown", group: "인생", name: "고향의 품", desc: "FA로 고향 팀 입단", check: (p) => !!p.homeSigned },
   { id: "newPitch", group: "커리어", name: "신무기", desc: "코치에게 새 구종을 배움", check: (p) => (p.learnedPitches || 0) >= 1 },
 );
+
+// ---------------------------------------------
+// 시즌 흐름 중간에 부르는 묶음
+// ---------------------------------------------
+
+// 시즌 기록이 끝나고 기사 쓰기 전에
+function beforeFeedStory(player, report) {
+  checkFranchise(player, report);
+  updateNickname(player, report);
+}
+
+// 시즌이 끝난 뒤 이야기 정리 (기사 만든 다음)
+function afterSeasonStory(player, report) {
+  seasonFame(player, report);
+  maybeClutch(player, report); // 결정적 순간은 맨 앞에 보여줌 (우승 여부는 선택 뒤에 공개)
+  report.newAchievements = checkAchievements(player); // 업적 도감 (achievements.js)
+  maybePositionOffer(player, report);
+  rotateManagers(player, report); // 감독 교체 (manager.js)
+  maybeManagerTalk(player, report); // 감독의 대타 제안 (manager.js)
+  maybeLifeEvent(player, report);
+}
+
+// 병역·사생활·포지션·결정적 순간·규정 선택지 처리 (career.js resolveChoice 에서 부름)
+function resolveStoryChoice(player, choice, option) {
+  if (choice.key === "life") return resolveLifeChoice(player, choice, option);
+  if (choice.key === "position") return resolvePositionChoice(player, choice, option);
+  if (choice.key === "clutch") return resolveClutch(player, choice, option);
+  if (RULE_CHOICES.includes(choice.key)) return resolveRulesChoice(player, choice, option); // rules.js
+  if (choice.key === "military") {
+    if (option.id === "delay") return [`${player.name}, 입대 연기… "아직 할 일이 남았다"`];
+    enlist(player, option.id);
+    changeFame(player, 3);
+    return [fillText(NEWS.special.enlist, player, { unit: option.id === "SANGMU" ? "국군체육부대(상무)" : "사회복무요원으로" })];
+  }
+  return [];
+}

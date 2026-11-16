@@ -1,3 +1,40 @@
+/* =============================================
+   style.css : 화면 꾸밈 전부
+   뒤에 나온 규칙이 앞 규칙을 덮어쓰니까 구역 순서는 바꾸면 안 됨
+   (화면 크기별 규칙이 맨 뒤에 있어야 폰·PC 배치가 맞음)
+
+   1. 기본 (글꼴, 배경, 입력칸, 버튼, 능력치 막대)
+   2. 시즌 진행 버튼, 집중 훈련, 선택지
+   3. 시즌 결과, 커리어, 은퇴 화면
+   4. 탭, 댓글창, 기록표, 재산
+   5. 별명, 팬 여론, 라이벌, 포지션 변경
+   6. 고교대회, 월별 순위 그래프
+   7. 업적 도감, 명예의 전당, FA 현황
+   8. 순위표, 쇼핑, 큰 화면 알림
+   9. 저장 내보내기, 포스트시즌·월별 기록, 답글, 역대 순위, 뉴스 탭
+   10. 텍스트 중계, 트래킹, 연감, 숙적, 기자회견
+   11. 세이버 지표, 스카우트 범위
+   12. 메일함
+   13. 박스스코어, 수싸움
+   14. 라커룸, 기록 사냥, 시대 연표
+   15. 기록 하위 탭, 메일 탭
+   16. 등번호, 응원가
+   17. 서포트 카드
+   18. 세레머니, 기념구 앨범, 토스트
+   19. 감독 면담 대화 (talk.js)
+   20. 팬심, 밈
+   21. 4구간 시즌, 스프링캠프 창 (phases.js)
+   22. 그래프 (charts.js)
+   23. 분석실 (analysis.js)
+   24. 라커룸 그룹, 감독이 본 것 (clubhouse.js)
+   25. 부상, 2군, 상대 전적
+   26. 오른쪽 피드 (PC)
+   27. 화면 크기별: 폰
+   28. 화면 크기별: 태블릿
+   29. 화면 크기별: PC 3단 (왼쪽 메뉴 · 가운데 · 오른쪽 피드)
+   ============================================= */
+
+/* ========== 1. 기본 (글꼴, 배경, 입력칸, 버튼, 능력치 막대) ========== */
 body {
   font-family: "Malgun Gothic", sans-serif;
   background: #1b2a1f;
@@ -81,7 +118,7 @@ button {
   color: #ff5a5a;
 }
 
-/* ---- 시즌 진행 ---- */
+/* ========== 2. 시즌 진행 버튼, 집중 훈련, 선택지 ========== */
 #season-panel {
   margin-top: 16px;
   padding-top: 8px;
@@ -144,7 +181,7 @@ button.secondary {
   color: #d5e2d8;
 }
 
-/* ---- 3단계: 시즌 결과, 커리어, 은퇴 ---- */
+/* ========== 3. 시즌 결과, 커리어, 은퇴 화면 ========== */
 .ovr.legend {
   color: #ffd700;
   text-shadow: 0 0 6px #ffb300;
@@ -215,18 +252,11 @@ td {
   color: #c8d6cb;
 }
 
-#career-box {
-  margin-top: 16px;
-}
-#career-box summary {
-  cursor: pointer;
-  color: #e8b931;
-}
 #retired-screen p {
   margin: 6px 0;
 }
 
-/* ---- 기획서 추가: 탭, 댓글창, 기록표, 재산 ---- */
+/* ========== 4. 탭, 댓글창, 기록표, 재산 ========== */
 #player-header h2 {
   margin-bottom: 4px;
 }
@@ -452,7 +482,7 @@ button.choice small {
   color: #6fcf7f;
 }
 
-/* ---------- 5. 별명, 팬 여론, 라이벌, 포지션 변경 ---------- */
+/* ========== 5. 별명, 팬 여론, 라이벌, 포지션 변경 ========== */
 .nick {
   color: #e8b931;
   font-size: 16px;
@@ -533,7 +563,7 @@ button.choice small {
   font-size: 13px;
 }
 
-/* ---------- 6. 고교대회, 월별 순위 그래프 ---------- */
+/* ========== 6. 고교대회, 월별 순위 그래프 ========== */
 .hs-cups {
   list-style: none;
   padding: 0;
@@ -660,7 +690,7 @@ button.choice small {
   margin-top: 2px;
 }
 
-/* ---------- 7. 성장유형, 업적 도감, 명예의 전당, FA 현황 ---------- */
+/* ========== 7. 업적 도감, 명예의 전당, FA 현황 ========== */
 .growth {
   font-size: 14px;
   color: #c8d6cb;
@@ -760,7 +790,7 @@ button.choice small {
   font-size: 13px;
 }
 
-/* ---------- 8. v9: 순위표, 쇼핑, 큰 화면 알림 ---------- */
+/* ========== 8. 순위표, 쇼핑, 큰 화면 알림 ========== */
 .ps {
   font-size: 12px;
   background: #2f6b45;
@@ -1021,7 +1051,7 @@ form label.school-field select {
   font-weight: normal;
 }
 
-/* v15 */
+/* ========== 9. 저장 내보내기, 포스트시즌·월별 기록, 답글, 역대 순위, 뉴스 탭 ========== */
 /* 저장 파일 내보내기·불러오기 (backup.js) */
 #backup-box {
   margin-top: 22px;
@@ -1096,9 +1126,6 @@ form label.school-field select {
   font-weight: bold;
   margin-left: 4px;
   font-size: 11px;
-}
-.ps-stat {
-  margin: 4px 0;
 }
 .league-pick button {
   width: auto;
@@ -1292,7 +1319,7 @@ form label.school-field select {
   margin-left: 4px;
 }
 
-/* ---------- 10. v16: 텍스트 중계, 트래킹, 연감, 숙적, 기자회견 ---------- */
+/* ========== 10. 텍스트 중계, 트래킹, 연감, 숙적, 기자회견 ========== */
 @keyframes pbp-in {
   from {
     opacity: 0;
@@ -1625,7 +1652,7 @@ details.hl p {
   margin: 8px 0 0;
 }
 
-/* ---- v17 세이버 / 스카우트 범위 ---- */
+/* ========== 11. 세이버 지표, 스카우트 범위 ========== */
 td.saber {
   font-weight: bold;
   color: #ffd36b;
@@ -1647,7 +1674,7 @@ td.saber {
   margin-top: 4px;
 }
 
-/* ---- v17 메일함 ---- */
+/* ========== 12. 메일함 ========== */
 #choice-panel:has(.mailbox) {
   background: #2b3530;
 }
@@ -1726,32 +1753,7 @@ td.saber {
   color: inherit;
   opacity: 0.8;
 }
-.mail-log {
-  margin-top: 12px;
-  font-size: 13px;
-}
-.mail-log ul {
-  list-style: none;
-  padding: 0;
-  max-height: 260px;
-  overflow-y: auto;
-}
-.mail-log li {
-  display: grid;
-  gap: 2px;
-  padding: 6px 0;
-  border-bottom: 1px solid #3a4d3f;
-}
-.mail-log li span,
-.mail-log li small {
-  color: #b9c9bc;
-}
-.mail-log li em {
-  color: #ffd36b;
-  font-style: normal;
-}
-
-/* ---- v17 박스스코어 / 수싸움 ---- */
+/* ========== 13. 박스스코어, 수싸움 ========== */
 .cb-memo {
   background: rgba(255, 211, 107, 0.12);
   border-left: 3px solid #ffd36b;
@@ -1794,7 +1796,7 @@ td.saber {
   color: #cfe0d3;
 }
 
-/* ---- v17 라커룸 / 기록 사냥 / 시대 연표 ---- */
+/* ========== 14. 라커룸, 기록 사냥, 시대 연표 ========== */
 .mates {
   list-style: none;
   padding: 0;
@@ -1875,7 +1877,7 @@ table.records small {
   margin-left: 4px;
 }
 
-/* ---------- v18: 기록 하위 탭, 메일 탭 ---------- */
+/* ========== 15. 기록 하위 탭, 메일 탭 ========== */
 #subtabs {
   display: flex;
   gap: 4px;
@@ -1956,7 +1958,7 @@ table.records small {
   font-size: 12px;
 }
 
-/* ---------- v18: 등번호, 응원가 ---------- */
+/* ========== 16. 등번호, 응원가 ========== */
 .jersey {
   display: inline-block;
   min-width: 28px;
@@ -1982,7 +1984,7 @@ table.records small {
   line-height: 1.5;
 }
 
-/* ---------- v18: 서포트 카드 ---------- */
+/* ========== 17. 서포트 카드 ========== */
 .deck-picker {
   margin: 12px 0;
 }
@@ -2060,7 +2062,7 @@ table.records small {
   color: #e8b931;
 }
 
-/* ---------- v18: 세레머니, 기념구 앨범, 토스트 ---------- */
+/* ========== 18. 세레머니, 기념구 앨범, 토스트 ========== */
 #big-modal.ceremony .big-card {
   position: relative;
   overflow: hidden;
@@ -2198,7 +2200,7 @@ table.records small {
   }
 }
 
-/* ---------- v18: 감독 면담 대화 ---------- */
+/* ========== 19. 감독 면담 대화 (talk.js) ========== */
 #talk-modal {
   position: fixed;
   inset: 0;
@@ -2331,7 +2333,7 @@ table.records small {
   border-left: 4px solid #c0504d;
 }
 
-/* ---------- v19: 팬심, 밈 ---------- */
+/* ========== 20. 팬심, 밈 ========== */
 .fandom,
 .memes {
   background: #1b2a1f;
@@ -2422,7 +2424,7 @@ table.records small {
   opacity: 0.5;
 }
 
-/* ---------- v0.19: 4구간 시즌 (phases.js) ---------- */
+/* ========== 21. 4구간 시즌, 스프링캠프 창 (phases.js) ========== */
 .in-season > h3,
 .in-season #focus-list,
 .in-season #position-panel {
@@ -2581,7 +2583,7 @@ table.records small {
   content: " 🔥";
 }
 
-/* ---------- 그래프 (charts.js) ---------- */
+/* ========== 22. 그래프 (charts.js) ========== */
 .line-chart {
   width: 100%;
   height: auto;
@@ -2641,7 +2643,7 @@ table.records small {
   margin-bottom: 16px;
 }
 
-/* ---------- 분석실 (analysis.js) ---------- */
+/* ========== 23. 분석실 (analysis.js) ========== */
 .analysis-side {
   margin: 10px 0 18px;
   padding: 12px;
@@ -2699,7 +2701,7 @@ table.records small {
   margin: 0 0 0 6px;
 }
 
-/* ---------- 라커룸 그룹 (clubhouse.js) ---------- */
+/* ========== 24. 라커룸 그룹, 감독이 본 것 (clubhouse.js) ========== */
 .groups {
   list-style: none;
   padding: 0;
@@ -2755,7 +2757,7 @@ table.records small {
   color: #a8321b;
 }
 
-/* ---------- v0.20: 부상·2군·상대 전적 ---------- */
+/* ========== 25. 부상, 2군, 상대 전적 ========== */
 .inj-status {
   background: #3a2222;
   border-left: 3px solid #d4694f;
@@ -2797,7 +2799,7 @@ table.records small {
   color: #fff;
 }
 
-/* ---------- v0.20: 오른쪽 피드 (PC) ---------- */
+/* ========== 26. 오른쪽 피드 (PC) ========== */
 #side-col {
   display: none;
 }
@@ -2854,7 +2856,7 @@ table.records small {
   color: #a9b8ad;
 }
 
-/* ---------- v0.20: 폰 정리 ---------- */
+/* ========== 27. 화면 크기별: 폰 ========== */
 @media (max-width: 759px) {
   body {
     padding: 10px;
@@ -2880,7 +2882,7 @@ table.records small {
   }
 }
 
-/* ---------- v0.20: 태블릿 ---------- */
+/* ========== 28. 화면 크기별: 태블릿 ========== */
 @media (min-width: 760px) {
   body {
     max-width: 760px;
@@ -2894,7 +2896,7 @@ table.records small {
   }
 }
 
-/* ---------- v0.20: PC 3단 (왼쪽 메뉴 · 가운데 · 오른쪽 피드) ---------- */
+/* ========== 29. 화면 크기별: PC 3단 (왼쪽 메뉴 · 가운데 · 오른쪽 피드) ========== */
 @media (min-width: 1100px) {
   body {
     max-width: 1440px;

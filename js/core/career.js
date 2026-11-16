@@ -14,86 +14,10 @@ const AWARD_LINE = {
   MLB: { war: 8, hr: 46, avg: 0.33, rbi: 120, ops: 1.0, sb: 45, w: 17, k: 230, sv: 40, hld: 32, era: 2.6 },
 };
 
-// 예전 저장 데이터나 새 선수에 커리어 정보를 채워줌
-function initCareer(player) {
-  if (!player.league) player.league = "HS";
-  if (!player.team) player.team = player.school;
-  if (!player.history) player.history = [];
-  if (!player.awards) player.awards = {};
-  if (player.proSeasons === undefined) player.proSeasons = 0;
-  if (player.bestOvr === undefined) player.bestOvr = getOvrs(player).best;
-  if (player.retired === undefined) player.retired = false;
-  if (player.pendingChoice === undefined) player.pendingChoice = null;
-  if (!player.choiceQueue) player.choiceQueue = [];
-  if (!player.leagueSeasons) player.leagueSeasons = {};
-  if (player.money === undefined) player.money = 0;
-  if (!player.owned) player.owned = [];
-  if (player.fame === undefined) player.fame = 0;
-  if (!player.rival) player.rival = createRival(player);
-  initRules(player); // 1군 등록 시즌 등 (rules.js)
-  initLegacy(player); // 성장유형 (legacy.js)
-  initWorld(player); // 숨은 특성, 전담 스태프 계약 (world.js)
-  initNemesis(player); // 숙적 목록 (nemesis.js)
-  initNumber(player); // 등번호 (fanfare.js)
-  initBalls(player); // 기념구 (ceremony.js)
-  applyWorldState(player); // 시대·신생구단 다시 적용 (era.js)
-  if (!player.contract && !isAmateur(player.league)) {
-    player.contract = makeContract(player.league, player.team, 1, minSalary(player.league, player), 0);
-  }
-  return player;
-}
-
-// 선택지가 여러 개 생기면 줄 세워서 하나씩 보여줌
-// 메일 폭탄 방지: 꼭 필요한 메일(드래프트·FA·병역·결정적 순간 등)은 다 오고,
-// 곁가지 메일은 한 번에 MAIL_CAP 통까지만. 넘치면 중요도 낮은 것부터 안 옴 (숫자 클수록 중요)
-const MAIL_PRIORITY = { life: 1, locker: 2, lockerSide: 2, coachPitch: 2, sns: 3, nemesisMate: 3, routineMake: 3 };
-const MAIL_CAP = 2;
-const MAIL_TOTAL_CAP = 5; // 전체 쌓인 게 이만큼이면 곁가지 메일은 아예 안 옴
-
-function pushChoice(player, choice) {
-  const pr = MAIL_PRIORITY[choice.key];
-  if (pr) {
-    const pend = [player.pendingChoice, ...player.choiceQueue].filter(Boolean);
-    if (pend.length >= MAIL_TOTAL_CAP) return skipMail(player);
-    const side = player.choiceQueue.filter((c) => MAIL_PRIORITY[c.key]);
-    const sideAll = pend.filter((c) => MAIL_PRIORITY[c.key]).length;
-    if (sideAll >= MAIL_CAP) {
-      // 대기 중인 곁가지 메일 중 제일 덜 중요한 것보다 중요하면 바꿔 끼움
-      const low = side.sort((a, b) => MAIL_PRIORITY[a.key] - MAIL_PRIORITY[b.key])[0];
-      if (!low || MAIL_PRIORITY[low.key] >= pr) return skipMail(player);
-      player.choiceQueue.splice(player.choiceQueue.indexOf(low), 1);
-      skipMail(player);
-    }
-  }
-  if (!player.pendingChoice) player.pendingChoice = choice;
-  else player.choiceQueue.push(choice);
-}
-
-function skipMail(player) {
-  player.mailSkipped = (player.mailSkipped || 0) + 1;
-}
-
-function nextChoice(player) {
-  player.pendingChoice = player.choiceQueue.shift() || null;
-}
-
-// 타자 OVR, 투수 OVR, 둘 중 높은 값
-function getOvrs(player) {
-  const [first, second] = player.position.split(" 겸 ");
-  const result = { bat: null, pit: null };
-  if (player.type === "batter") result.bat = calcOvr(player.stats, BATTER_STATS, first);
-  if (player.type === "pitcher") result.pit = calcOvr(player.stats, PITCHER_STATS, first);
-  if (player.type === "twoway") {
-    result.pit = calcOvr(player.stats, PITCHER_STATS, first);
-    result.bat = calcOvr(player.stats, BATTER_STATS, second);
-  }
-  result.best = Math.max(result.bat || 0, result.pit || 0);
-  return result;
-}
-
 // ---------------------------------------------
 // 1. 출전 계획
 // ---------------------------------------------
+
 function batterPlan(player, ovr) {
   const league = LEAGUES[player.league];
   const share = player.type === "twoway" ? 0.75 : 1;
@@ -139,6 +63,7 @@ function pitcherPlan(player, ovr) {
 // ---------------------------------------------
 // 2. 시즌 진행 (핵심 함수)
 // ---------------------------------------------
+
 // 한 번에 시즌 끝까지 (아마추어·테스트). 프로는 phases.js 가 4구간으로 나눠서 부름
 function runSeason(player, focusKeys) {
   if (player.league === "SOCIAL") return serviceSeason(player, focusKeys); // 사회복무는 경기가 없음
@@ -167,7 +92,7 @@ function startSeason(player, focusKeys, opts) {
   };
 
   archiveNews(player); // 지난 시즌 기사 보관 (news.js)
-  if (!opts.phased) maybeMidTrade(player, report); // 시즌 도중 강제 트레이드 (extra.js). 4구간 시즌은 트레이드 마감 이벤트로 대신
+  if (!opts.phased) maybeMidTrade(player, report); // 시즌 도중 강제 트레이드 (trade.js). 4구간 시즌은 트레이드 마감 이벤트로 대신
 
   // (1) 국가대표 대회 / 팀 집중
   let mod = 0;
@@ -189,13 +114,13 @@ function startSeason(player, focusKeys, opts) {
     report.events.push(player.nextMod > 0 ? "감독 신뢰" : "멘탈 흔들림");
     player.nextMod = 0;
   }
-  mod += hiddenMod(player, report); // 숨은 특성·회춘 (world.js)
-  mod += seasonTraitMod(player); // 특정 계절에 강한 선수 (extra.js)
-  mod += historicMod(player, report, league.level); // 역사적 시즌, 극악 확률 (extra.js)
+  mod += hiddenMod(player, report); // 숨은 특성·회춘 (traits.js)
+  mod += seasonTraitMod(player); // 특정 계절에 강한 선수 (traits.js)
+  mod += historicMod(player, report, league.level); // 역사적 시즌, 극악 확률 (historic.js)
   mod += lockerMod(player, report); // 라커룸 사기 (locker.js)
   mod += cardMod(player, report); // 서포트 카드 (cards.js)
   mod += opts.campMod || 0; // 스프링캠프 (phases.js)
-  resolveCampWish(player, report, mod); // 감독 면담 '캠프 경쟁' 결과 (world.js)
+  resolveCampWish(player, report, mod); // 감독 면담 '캠프 경쟁' 결과 (manager.js)
   if (player.positionAdjust) {
     mod -= 2;
     report.events.push("새 포지션 적응");
@@ -212,7 +137,7 @@ function startSeason(player, focusKeys, opts) {
   injuryChance *= cardInjuryMul(player); // 트레이너 카드 (cards.js)
   injuryChance *= opts.injuryMul || 1; // 캠프에서 몸 만들기 (phases.js)
   const restFactor = resting ? 0.9 : 1;
-  // 부상 정도, 유리몸 (extra.js) / 수술한 다음 해는 거의 통째로 쉼 (body.js)
+  // 부상 정도, 유리몸 (injury.js rollInjury) / 수술한 다음 해는 거의 통째로 쉼 (body.js)
   // 4구간 시즌은 전반기·후반기마다 따로 굴림 (injury.js)
   let injChance = 0;
   if (player.surgeryOut) gameFactor = surgerySeason(player, report);
@@ -258,7 +183,7 @@ function playPart(player, ctx, from, to) {
     const games = Math.round(plan.games * ctx.gameFactor * ctx.restFactor * share * (ctx.partFactor ?? 1));
     const b = steadyBattingSeason(player.stats, league.level, games, plan.pa, mod, batPos, LEAGUE_ENV[player.league]);
     b.role = plan.label;
-    if (plan.label.startsWith("주전")) lineupEffect(player, b); // 타순 (world.js)
+    if (plan.label.startsWith("주전")) lineupEffect(player, b); // 타순 (manager.js)
     part.bat = b;
     report.bat = report.bat ? addSeason(report.bat, b, true) : b;
   }
@@ -284,7 +209,7 @@ function finishSeason(player, ctx) {
   report.WAR = round((report.bat ? report.bat.WAR : 0) + (report.pit ? report.pit.WAR : 0), 1);
   addSaber(report); // wRC+, FIP, K% (saber.js)
   report.gameFactor = gameFactor; // 1군 등록일수 계산용
-  makeSplits(player, report); // 월별 성적 (extra.js)
+  makeSplits(player, report); // 월별 성적 (splits.js)
   makeTracking(player, report); // 구속·구종·비거리·타구 방향 (broadcast.js)
   historicMoment(player, report);
 
@@ -293,12 +218,12 @@ function finishSeason(player, ctx) {
   statRanks(player, report);
   makeLeaders(player, report); // 리그 리더보드 (almanac.js)
   checkAwards(player, report);
-  postseasonStats(player, report, mod); // 포스트시즌 기록 (extra.js)
+  postseasonStats(player, report, mod); // 포스트시즌 기록 (postseason.js)
   rivalSeason(player, report); // 라이벌도 같은 해 시즌을 보냄
 
   // (5) 성장
   report.gains = growPlayer(player, focusKeys, report);
-  maybeRevival(player, report); // 30대 회춘 (world.js)
+  maybeRevival(player, report); // 30대 회춘 (traits.js)
   player.lastFocus = focusKeys;
 
   // (6) 연봉 받기
@@ -343,7 +268,7 @@ function finishSeason(player, ctx) {
   checkMilitary(player, report);
   player.bestOvr = Math.max(player.bestOvr, getOvrs(player).best);
 
-  // (9) 기사와 팬 반응, 그리고 야구 밖의 이야기 (story.js)
+  // (9) 기사와 팬 반응, 그리고 야구 밖의 이야기 (flow.js)
   beforeFeedStory(player, report);
   buildFeed(player, report);
   afterSeasonStory(player, report);
@@ -361,9 +286,8 @@ function finishSeason(player, ctx) {
 }
 
 // ---------------------------------------------
-// 3. 팀 순위와 리그 기록 순위
+// 3. 리그 기록 순위
 // ---------------------------------------------
-// teamStanding은 world.js에 있음 (지구·리그별 순위)
 
 // 값이 기준선과 얼마나 먼지로 리그 순위를 추정함
 // 1위 기준(line)은 해마다 다름: 그해 경쟁자 기록이 흔들림 (step 1.5배 정도)
@@ -403,6 +327,7 @@ function statRanks(player, report) {
 // ---------------------------------------------
 // 4. 수상과 우승
 // ---------------------------------------------
+
 function addAward(player, report, name) {
   player.awards[name] = (player.awards[name] || 0) + 1;
   report.awards.push(name);
@@ -426,14 +351,14 @@ function checkAwards(player, report) {
 
   // 우승
   if (lg === "HS") {
-    playHsTournaments(player, report); // 이마트배, 황금사자기, 청룡기, 대통령배, 봉황대기 (story.js)
+    playHsTournaments(player, report); // 이마트배, 황금사자기, 청룡기, 대통령배, 봉황대기 (cups.js)
   } else if (lg === "COLLEGE") {
-    playCollegeTournaments(player, report); // U-리그 왕중왕전, 선수권, 대통령기 (story.js)
+    playCollegeTournaments(player, report); // U-리그 왕중왕전, 선수권, 대통령기 (cups.js)
   } else {
-    checkChampion(player, report); // 포스트시즌 시드별 우승 확률 (world.js)
+    checkChampion(player, report); // 포스트시즌 시드별 우승 확률 (standings.js)
   }
 
-  allStar(player, report); // 올스타 (world.js)
+  allStar(player, report); // 올스타 (awards.js)
 
   if (!TOP_LEAGUES.includes(lg) || !report.ranks) return;
 
@@ -441,13 +366,14 @@ function checkAwards(player, report) {
   for (const r of report.ranks) {
     if (r.rank === 1 && TITLE_NAMES[r.key]) addAward(player, report, TITLE_NAMES[r.key]);
   }
-  // MVP·신인왕·골든글러브·베스트나인·실버슬러거·골드글러브·투수상 (world.js)
+  // MVP·신인왕·골든글러브·베스트나인·실버슬러거·골드글러브·투수상 (awards.js)
   seasonAwards(player, report);
 }
 
 // ---------------------------------------------
 // 5. 성장 (집중 안 한 능력치는 떨어질 수도 있음)
 // ---------------------------------------------
+
 function baseGrowth(age) {
   if (age <= 18) return 1.5;
   if (age <= 23) return 1.2;
@@ -458,8 +384,8 @@ function baseGrowth(age) {
 }
 
 function growPlayer(player, focusKeys, report) {
-  let base = typedGrowth(player); // 성장유형 반영 (legacy.js)
-  base = adjustGrowthBase(player, base); // 회춘·전담 셰프 (world.js)
+  let base = typedGrowth(player); // 성장유형 반영 (growth.js)
+  base = adjustGrowthBase(player, base); // 회춘·전담 셰프 (traits.js)
   if (player.type === "twoway" && base > 0) base *= 0.7;
   let bonus = 0;
   if (report.WAR >= 4) bonus += 1;
@@ -493,6 +419,7 @@ function growPlayer(player, focusKeys, report) {
 // ---------------------------------------------
 // 6. 커리어 이동 (드래프트, 콜업, FA, 해외, 은퇴)
 // ---------------------------------------------
+
 function draftScore(player, report) {
   const school = HIGH_SCHOOLS.find((s) => s.name === player.school);
   const schoolBonus = player.league === "HS" && school ? school.level * 2 : 0; // 강팀은 스카우트 노출이 많음
@@ -520,12 +447,12 @@ function moveCareer(player, report) {
   const lg = player.league;
 
   if (lg === "HS" && player.age >= 19) {
-    hsDraft(player, report); // 지명되면 입단 또는 대학 진학 선택 (rules.js)
+    hsDraft(player, report); // 지명되면 입단 또는 대학 진학 선택 (draft.js)
   } else if (lg === "COLLEGE" && player.age >= 23) {
     collegeDraft(player, report); // 대학 4학년 끝 → 대졸 드래프트
   } else if (lg === "INDIE" || lg === "ABL") {
-    indieToPro(player, report); // 드래프트 또는 육성선수 계약 (rules.js)
-    indieScout(player, report); // 나이 많아도 실력 되면 육성 계약 (extra.js)
+    indieToPro(player, report); // 드래프트 또는 육성선수 계약 (draft.js)
+    indieScout(player, report); // 나이 많아도 실력 되면 육성 계약 (late-career.js)
   } else if (lg === "KBO2" || lg === "KBO") {
     player.proSeasons++;
     countKboService(player, report); // 1군 등록 145일 이상이면 FA 1시즌 (rules.js)
@@ -550,7 +477,7 @@ function moveCareer(player, report) {
       } else if (lg === "KBO") maybeArbitration(player, report, "kbo"); // 연봉 차이 크면 조정 신청 (contract.js)
     }
     if (!faNow) maybePosting(player, report); // 1군 7시즌 + 구단 동의면 포스팅
-    if (!faNow) maybeAfterTrade(player, report); // 쓸모없으면 시즌 뒤 강제 트레이드 (extra.js)
+    if (!faNow) maybeAfterTrade(player, report); // 쓸모없으면 시즌 뒤 강제 트레이드 (trade.js)
     // 콜업과 강등
     const kboLevel = LEAGUES.KBO.level;
     if (lg === "KBO2" && (ovr >= kboLevel - 3 || (report.WAR >= 2.5 && ovr >= kboLevel - 8) || callupStuck(player, report))) {
@@ -563,7 +490,7 @@ function moveCareer(player, report) {
       report.specials.push({ key: "demote" });
     }
   } else if (lg === "MILB") {
-    milbTick(player, report); // 콜업 또는 방출 (world.js)
+    milbTick(player, report); // 콜업 또는 방출 (minors.js)
   } else if (lg === "SANGMU" || lg === "SOCIAL") {
     serviceTick(player, report); // 복무 2년이 끝나면 원래 팀으로
   } else if (lg === "NPB" || lg === "MLB") {
@@ -585,7 +512,7 @@ function moveCareer(player, report) {
     }
   }
 
-  // 은퇴할 수밖에 없는 상황: 성적 좋으면 나이 많아도 계속 뜀 (extra.js)
+  // 은퇴할 수밖에 없는 상황: 성적 좋으면 나이 많아도 계속 뜀 (late-career.js)
   if (mustRetireNow(player, report, ovr)) {
     player.choiceQueue = [];
     player.pendingChoice = forcedRetireChoice(player); // 현역 연장(입단 테스트) 선택지 있음
@@ -606,7 +533,7 @@ function resolveChoice(player, id) {
   }
 
   if (choice.key === "undrafted" && id === "COLLEGE") {
-    enterCollege(player); // 대학 고르기 선택지가 이어짐 (rules.js)
+    enterCollege(player); // 대학 고르기 선택지가 이어짐 (draft.js)
     news.push(`${player.name}, 대학 진학 결심… 대학에서 다시 프로를 노린다`);
   } else if (choice.key === "undrafted") {
     player.league = id;
@@ -624,9 +551,9 @@ function resolveChoice(player, id) {
       news.push(`${player.name}, "이도류 포기 안 한다" 정면 돌파 선언`);
     }
   } else if (choice.key === "forcedRetire" && id === "extend") {
-    news.push(...resolveExtend(player)); // 입단 테스트 (extra.js)
+    news.push(...resolveExtend(player)); // 입단 테스트 (late-career.js)
   } else if (choice.key === "fa" && (id === "wait" || id === "negotiate")) {
-    news.push(...resolveFaTable(player, choice, id)); // 협상 테이블 (extra.js)
+    news.push(...resolveFaTable(player, choice, id)); // 협상 테이블 (fa.js)
   } else if (choice.key === "faNego") {
     news.push(...resolveFaNego(player, choice, option));
   } else if (choice.key === "fa" && id === "nofile") {
@@ -640,7 +567,7 @@ function resolveChoice(player, id) {
     const wasAbroad = ["MLB", "NPB", "MILB"].includes(player.league);
     const comp = compensationInfo(player, o, stayed); // 보상선수 등급은 계약 전 연봉 기준 (compensation.js)
     signContract(player, o);
-    recordFaDeal(player, o); // FA로 번 돈 (extra.js)
+    recordFaDeal(player, o); // FA로 번 돈 (fa.js)
     const terms = applyContractTerms(player, o, oldTeam, stayed); // 조항·역할 약속·에이전트 성향 (contract.js)
     if (o.mega) player.megaSigned = true; // 업적용
     const values = { team: o.team, total: fmtMoney(o.total), years: o.years };
@@ -688,6 +615,7 @@ function resolveChoice(player, id) {
 // ---------------------------------------------
 // 7. 은퇴와 랭킹
 // ---------------------------------------------
+
 const RANKING_KEY = "baseball-ranking";
 
 // 통산 기록 (고교 제외)
@@ -769,7 +697,7 @@ function careerTotals(player, leagueFilter) {
 function retirePlayer(player) {
   player.retireNews = player.banned ? "승부조작 가담으로 KBO에서 영구 제명됐다" : retireStory(player); // 프랜차이즈 스타는 영구결번
   player.retired = true;
-  runHofVote(player); // 명예의 전당 투표 (legacy.js)
+  runHofVote(player); // 명예의 전당 투표 (hof.js)
   player.retireAchievements = checkAchievements(player);
   player.pendingChoice = null;
   player.choiceQueue = [];
